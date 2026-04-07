@@ -140,13 +140,27 @@ class _CalendarBodyState extends State<_CalendarBody> {
               height: MediaQuery.sizeOf(context).height * 0.78,
               child: Column(
                 children: [
-                  Text(
-                    DateFormat('yyyy.MM.dd').format(day),
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(14, 2, 14, 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      DateFormat('yyyy.MM.dd').format(day),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.2,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
                   Expanded(
                     child: PageView.builder(
                       itemCount: _forDay.length,
@@ -537,26 +551,22 @@ class _MomentTemplateCard extends StatelessWidget {
     final previewCount = photos.length > 3 ? 3 : photos.length;
     final overflow = photos.length - previewCount;
     return Transform.rotate(
-      angle: ((moment.id.hashCode % 9) - 4) / 700,
+      angle: ((moment.id.hashCode % 11) - 5) / 650,
       child: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: Theme.of(
-              context,
-            ).colorScheme.outlineVariant.withValues(alpha: 0.6),
-          ),
+          color: const Color(0xFFFFFCF7),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE8DFC9)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 14,
+              offset: const Offset(0, 7),
             ),
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -605,7 +615,7 @@ class _MomentTemplateCard extends StatelessWidget {
                                         DecoratedBox(
                                           decoration: BoxDecoration(
                                             color: Colors.black.withValues(
-                                              alpha: 0.5,
+                                              alpha: 0.52,
                                             ),
                                             borderRadius: BorderRadius.circular(
                                               10,
@@ -655,6 +665,15 @@ class _MomentTemplateCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: Theme.of(context).colorScheme.outline,
                   fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                height: 4,
+                width: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8DFC9),
+                  borderRadius: BorderRadius.circular(999),
                 ),
               ),
             ],

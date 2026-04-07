@@ -75,7 +75,6 @@ class TodosRepository {
 
   Stream<List<CoupleTodo>> watchTodos(String coupleId) {
     return _todosCol(coupleId)
-        .orderBy('sortOrder')
         .orderBy('createdAt', descending: true)
         .limit(300)
         .snapshots()

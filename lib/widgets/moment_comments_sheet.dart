@@ -116,9 +116,12 @@ class _CommentsSheetBodyState extends State<_CommentsSheetBody> {
                         'yyyy.MM.dd HH:mm',
                         locale,
                       ).format(c.createdAt);
+                      final safeName = c.authorName.trim().isNotEmpty
+                          ? c.authorName.trim()
+                          : (mine ? '나' : '상대');
                       return Container(
                         margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.fromLTRB(10, 10, 6, 8),
+                        padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
@@ -157,9 +160,7 @@ class _CommentsSheetBodyState extends State<_CommentsSheetBody> {
                                     children: [
                                       Expanded(
                                         child: Text(
-                                          c.authorName.isEmpty
-                                              ? '이름 없음'
-                                              : c.authorName,
+                                          safeName,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: Theme.of(context)
@@ -191,6 +192,7 @@ class _CommentsSheetBodyState extends State<_CommentsSheetBody> {
                             if (mine)
                               PopupMenuButton<String>(
                                 icon: const Icon(Icons.more_vert, size: 18),
+                                tooltip: '댓글 메뉴',
                                 onSelected: (value) async {
                                   if (value == 'edit') {
                                     setState(() {
@@ -213,11 +215,23 @@ class _CommentsSheetBodyState extends State<_CommentsSheetBody> {
                                 itemBuilder: (context) => const [
                                   PopupMenuItem(
                                     value: 'edit',
-                                    child: Text('수정'),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.edit_outlined, size: 18),
+                                        SizedBox(width: 8),
+                                        Text('수정'),
+                                      ],
+                                    ),
                                   ),
                                   PopupMenuItem(
                                     value: 'delete',
-                                    child: Text('삭제'),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete_outline, size: 18),
+                                        SizedBox(width: 8),
+                                        Text('삭제'),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),

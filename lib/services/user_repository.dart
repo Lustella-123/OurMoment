@@ -128,8 +128,8 @@ class UserRepository {
         if (compressed.length <= maxProfileBytes) break;
       }
     }
-    final fileName = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final storageRef = _storage.ref('users/$uid/profile/$fileName');
+    // iOS/Android에 이미 배포된 Storage 규칙/경로와 호환되도록 고정 파일명을 유지
+    final storageRef = _storage.ref('users/$uid/profile/avatar.jpg');
     await storageRef.putData(
       compressed,
       SettableMetadata(contentType: 'image/jpeg'),
