@@ -817,7 +817,7 @@ class _CalendarBodyState extends State<_CalendarBody> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<int>(
-                          value: selectedYear,
+                          initialValue: selectedYear,
                           decoration: const InputDecoration(
                             isDense: true,
                             border: OutlineInputBorder(),
@@ -834,7 +834,7 @@ class _CalendarBodyState extends State<_CalendarBody> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: DropdownButtonFormField<int>(
-                          value: selectedMonth,
+                          initialValue: selectedMonth,
                           decoration: const InputDecoration(
                             isDense: true,
                             border: OutlineInputBorder(),

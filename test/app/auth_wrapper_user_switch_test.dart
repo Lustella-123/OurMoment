@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:ourmoment/app/auth_wrapper.dart';
 import 'package:ourmoment/services/auth_repository.dart';
@@ -12,7 +16,7 @@ import 'package:ourmoment/services/todos_repository.dart';
 import 'package:ourmoment/services/user_repository.dart';
 import 'package:ourmoment/state/app_settings.dart';
 import 'package:ourmoment/state/main_shell_controller.dart';
-import 'package:ourmoment/theme/app_theme.dart';
+import 'package:ourmoment/l10n/app_localizations.dart';
 
 class _FakeUser extends Fake implements User {
   _FakeUser(this._uid);
@@ -29,14 +33,14 @@ class _FakeUser extends Fake implements User {
 }
 
 class _FakeAuthRepository extends Fake implements AuthRepository {
-  _FakeAuthRepository(this._controller);
-  final Stream<User?> _controller;
+  _FakeAuthRepository(this._stream);
+  final Stream<User?> _stream;
 
   @override
-  Stream<User?> userChanges() => _controller;
+  Stream<User?> userChanges() => _stream;
 
   @override
-  Stream<User?> authStateChanges() => _controller;
+  Stream<User?> authStateChanges() => _stream;
 
   @override
   bool needsEmailVerification(User user) => false;
@@ -51,15 +55,8 @@ class _RecordingUserRepository extends Fake implements UserRepository {
   }
 
   @override
-  Stream<dynamic> watchUser(String uid) => const Stream.empty();
-}
-
-class _FakeAppSettings extends ChangeNotifier implements AppSettings {
-  @override
-  String get languageCode => 'ko';
-
-  @override
-  AppThemePalette get themePalette => AppTheme.defaultPalette;
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watchUser(String uid) =>
+      const Stream.empty();
 }
 
 class _NoopCoupleRepository extends Fake implements CoupleRepository {}
@@ -75,12 +72,13 @@ void main() {
   testWidgets('AuthWrapper는 사용자 UID 변경 시 ensureUserProfile를 다시 호출한다', (
     tester,
   ) async {
-    final controller = Stream<User?>.fromIterable(<User?>[
-      _FakeUser('u1'),
-      _FakeUser('u2'),
-    ]);
-    final authRepo = _FakeAuthRepository(controller);
+    final controller = StreamController<User?>.broadcast();
+    final authRepo = _FakeAuthRepository(controller.stream);
     final userRepo = _RecordingUserRepository();
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final prefs = await SharedPreferences.getInstance();
+    final settings = AppSettings(prefs);
+    await settings.load();
 
     await tester.pumpWidget(
       MultiProvider(
@@ -96,15 +94,23 @@ void main() {
           ChangeNotifierProvider<MainShellController>(
             create: (_) => MainShellController(),
           ),
-          ChangeNotifierProvider<AppSettings>(create: (_) => _FakeAppSettings()),
+          ChangeNotifierProvider<AppSettings>.value(value: settings),
         ],
-        child: const MaterialApp(home: AuthWrapper()),
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AuthWrapper(),
+        ),
       ),
     );
 
+    controller.add(_FakeUser('u1'));
     await tester.pump();
+    await tester.pump();
+    controller.add(_FakeUser('u2'));
     await tester.pump();
 
     expect(userRepo.ensuredUids, containsAllInOrder(<String>['u1', 'u2']));
+    await controller.close();
   });
 }

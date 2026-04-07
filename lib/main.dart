@@ -112,8 +112,9 @@ class _BootstrapRootState extends State<_BootstrapRoot> {
       });
       debugPrint('앱 초기화 실패: $e');
     } finally {
-      if (!mounted) return;
-      setState(() => _initializing = false);
+      if (mounted) {
+        setState(() => _initializing = false);
+      }
     }
   }
 
