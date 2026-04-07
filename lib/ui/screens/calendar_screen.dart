@@ -29,6 +29,21 @@ class CalendarScreen extends StatelessWidget {
           : StreamBuilder(
               stream: context.read<UserRepository>().watchUser(user.uid),
               builder: (context, userSnap) {
+                if (userSnap.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        '캘린더 정보를 불러오지 못했어요.\n잠시 후 다시 시도해 주세요.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  );
+                }
+                if (!userSnap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
                 final coupleId = userSnap.data?.data()?['coupleId'] as String?;
                 if (coupleId == null || coupleId.isEmpty) {
                   return Center(
@@ -69,6 +84,7 @@ class _CalendarBodyState extends State<_CalendarBody> {
   List<CoupleCalendarEvent> _eventsForDay = [];
   bool _loadingMonth = true;
   String? _loadErrorMessage;
+  int _monthLoadSeq = 0;
 
   String _dayKey(DateTime day) =>
       '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
@@ -84,6 +100,7 @@ class _CalendarBodyState extends State<_CalendarBody> {
   }
 
   Future<void> _loadMonth() async {
+    final seq = ++_monthLoadSeq;
     setState(() => _loadingMonth = true);
     final momentRepo = context.read<MomentsRepository>();
     final eventRepo = context.read<CalendarEventsRepository>();
@@ -101,7 +118,7 @@ class _CalendarBodyState extends State<_CalendarBody> {
         final day = DateTime.parse('${e.dayKey}T00:00:00');
         grouped.putIfAbsent(day, () => <CoupleCalendarEvent>[]).add(e);
       }
-      if (!mounted) return;
+      if (!mounted || seq != _monthLoadSeq) return;
       setState(() {
         _markedMoments = set;
         _markedMomentKeys = set.map(_dayKey).toSet();
@@ -111,7 +128,7 @@ class _CalendarBodyState extends State<_CalendarBody> {
         _loadingMonth = false;
       });
     } on FirebaseException catch (e) {
-      if (!mounted) return;
+      if (!mounted || seq != _monthLoadSeq) return;
       setState(() {
         _loadingMonth = false;
         _loadErrorMessage = e.code == 'failed-precondition'
@@ -119,7 +136,7 @@ class _CalendarBodyState extends State<_CalendarBody> {
             : '달력을 불러오지 못했어요. 네트워크를 확인해 주세요.';
       });
     } on StateError catch (e) {
-      if (!mounted) return;
+      if (!mounted || seq != _monthLoadSeq) return;
       setState(() {
         _loadingMonth = false;
         _loadErrorMessage = e.message == 'calendar_index_missing_month'
@@ -127,7 +144,7 @@ class _CalendarBodyState extends State<_CalendarBody> {
             : '달력을 불러오지 못했어요. 네트워크를 확인해 주세요.';
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || seq != _monthLoadSeq) return;
       setState(() {
         _loadingMonth = false;
         _loadErrorMessage = '달력을 불러오지 못했어요. 네트워크를 확인해 주세요.';
@@ -593,8 +610,8 @@ class _CalendarBodyState extends State<_CalendarBody> {
               e.code == 'permission-denied'
                   ? l10n.diaryFirestorePermissionDenied
                   : (e.code == 'failed-precondition'
-                      ? '캘린더 인덱스가 아직 준비되지 않았어요.'
-                      : '일정 삭제에 실패했어요. 다시 시도해 주세요.'),
+                        ? '캘린더 인덱스가 아직 준비되지 않았어요.'
+                        : '일정 삭제에 실패했어요. 다시 시도해 주세요.'),
             ),
           ),
         );
@@ -653,8 +670,8 @@ class _CalendarBodyState extends State<_CalendarBody> {
             e.code == 'permission-denied'
                 ? l10n.diaryFirestorePermissionDenied
                 : (e.code == 'failed-precondition'
-                    ? '캘린더 인덱스가 아직 준비되지 않았어요.'
-                    : '일정 저장에 실패했어요. 다시 시도해 주세요.'),
+                      ? '캘린더 인덱스가 아직 준비되지 않았어요.'
+                      : '일정 저장에 실패했어요. 다시 시도해 주세요.'),
           ),
         ),
       );
@@ -873,11 +890,12 @@ class _CalendarBodyState extends State<_CalendarBody> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<AppSettings>();
-    final accent = settings.accentColor;
+    final accent = context.select<AppSettings, Color>((s) => s.accentColor);
     final mineColor = _myColor(accent);
     final partnerColor = _partnerColor(accent);
-    final locale = Locale(settings.languageCode);
+    final locale = Locale(
+      context.select<AppSettings, String>((s) => s.languageCode),
+    );
     final screenW = MediaQuery.sizeOf(context).width;
     final compactCell = screenW < 360;
     final weekCount = _weeksInMonth(_focused);
@@ -1025,7 +1043,8 @@ class _CalendarBodyState extends State<_CalendarBody> {
                         }
                       },
                       onPageChanged: (focused) async {
-                        _focused = focused;
+                        if (!mounted) return;
+                        setState(() => _focused = focused);
                         await _loadMonth();
                       },
                     ),
@@ -1117,6 +1136,7 @@ class _ScheduleTemplateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = mine ? mineColor : partnerColor;
     final tilt = ((title.hashCode % 7) - 3) / 650.0;
+    final scheme = Theme.of(context).colorScheme;
     return InkWell(
       borderRadius: BorderRadius.circular(18),
       onTap: onTap,
@@ -1124,7 +1144,7 @@ class _ScheduleTemplateCard extends StatelessWidget {
         angle: tilt,
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: scheme.surface,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: chipColor.withValues(alpha: 0.65),

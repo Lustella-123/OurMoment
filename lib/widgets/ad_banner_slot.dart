@@ -31,6 +31,7 @@ class _AdBannerSlotState extends State<AdBannerSlot> {
   BannerAd? _ad;
   bool _loaded = false;
   bool _failed = false;
+  bool _loading = false;
 
   @override
   void initState() {
@@ -58,14 +59,26 @@ class _AdBannerSlotState extends State<AdBannerSlot> {
   }
 
   void _load() {
+    final old = _ad;
+    _ad = null;
+    if (old != null) {
+      unawaited(old.dispose());
+    }
     _failed = false;
     _loaded = false;
+    _loading = true;
     final ad = BannerAd(
       adUnitId: _bannerAdUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
-        onAdLoaded: (_) => setState(() => _loaded = true),
+        onAdLoaded: (_) {
+          if (!mounted) return;
+          setState(() {
+            _loaded = true;
+            _loading = false;
+          });
+        },
         onAdFailedToLoad: (ad, err) {
           unawaited(ad.dispose());
           debugPrint('Banner failed: $err');
@@ -74,6 +87,7 @@ class _AdBannerSlotState extends State<AdBannerSlot> {
               _failed = true;
               _ad = null;
               _loaded = false;
+              _loading = false;
             });
           }
         },
@@ -96,18 +110,20 @@ class _AdBannerSlotState extends State<AdBannerSlot> {
     if (_failed) return const SizedBox.shrink();
     final h = _loaded && _ad != null ? _ad!.size.height.toDouble() : 0.0;
     if (h <= 0) {
-      return SizedBox(
-        height: 50,
-        child: Center(
-          child: SizedBox.square(
-            dimension: 24,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-        ),
-      );
+      return _loading
+          ? SizedBox(
+              height: 50,
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            )
+          : const SizedBox.shrink();
     }
     return SizedBox(
       width: _ad!.size.width.toDouble(),

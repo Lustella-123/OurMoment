@@ -20,10 +20,13 @@ class PairingScreen extends StatefulWidget {
 
 class _PairingScreenState extends State<PairingScreen> {
   final _codeCtrl = TextEditingController();
+
   /// 연결하기 진행 중 — 공유 버튼은 막지 않음
   bool _busyConnect = false;
   bool _busyEnsureCode = false;
   bool _busyLogout = false;
+  bool _busyShare = false;
+
   /// 마지막 실패 시 단계·상세 (옆/아래 패널)
   String? _pairingDiagnostic;
 
@@ -68,9 +71,7 @@ class _PairingScreenState extends State<PairingScreen> {
       await context.read<UserRepository>().ensurePersonalInviteCode(uid);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     } finally {
       if (mounted) setState(() => _busyEnsureCode = false);
     }
@@ -89,37 +90,41 @@ class _PairingScreenState extends State<PairingScreen> {
       final l10n = AppLocalizations.of(context)!;
       final msg = _mapError(l10n, e);
       setState(() => _pairingDiagnostic = '앱 검증 단계\n$msg');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } on PairingStepException catch (e) {
       if (!mounted) return;
       setState(() => _pairingDiagnostic = e.step.labelKo);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${e.step.labelKo}\n다시 시도해 주세요.',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${e.step.labelKo}\n다시 시도해 주세요.')));
     } catch (e) {
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;
       final detail = '기타 오류';
       setState(() => _pairingDiagnostic = detail);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.inviteErrorGeneric)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.inviteErrorGeneric)));
     } finally {
       if (mounted) setState(() => _busyConnect = false);
     }
   }
 
   Future<void> _share(String code) async {
+    if (_busyShare) return;
     final l10n = AppLocalizations.of(context)!;
     final link = inviteDeepLink(code);
     final text = l10n.inviteShareText(code, link);
-    await Share.share(text);
+    if (mounted) {
+      setState(() => _busyShare = true);
+    }
+    try {
+      await Share.share(text);
+    } finally {
+      if (mounted) {
+        setState(() => _busyShare = false);
+      }
+    }
   }
 
   Future<void> _logout() async {
@@ -133,132 +138,132 @@ class _PairingScreenState extends State<PairingScreen> {
   }
 
   bool get _anyBusy =>
-      _busyConnect || _busyEnsureCode || _busyLogout;
+      _busyConnect || _busyEnsureCode || _busyLogout || _busyShare;
 
   List<Widget> _formChildren(AppLocalizations l10n, String? uid) {
     return [
-          Text(l10n.pairingBody, style: Theme.of(context).textTheme.bodyLarge),
-          const SizedBox(height: 8),
-          Text(
-            l10n.pairingCodeFixedHint,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+      Text(l10n.pairingBody, style: Theme.of(context).textTheme.bodyLarge),
+      const SizedBox(height: 8),
+      Text(
+        l10n.pairingCodeFixedHint,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+      const SizedBox(height: 20),
+      if (uid == null)
+        const SizedBox.shrink()
+      else
+        StreamBuilder(
+          stream: context.read<UserRepository>().watchUser(uid),
+          builder: (context, snap) {
+            if (snap.hasError) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  '${snap.error}',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
-          ),
-          const SizedBox(height: 20),
-          if (uid == null)
-            const SizedBox.shrink()
-          else
-            StreamBuilder(
-              stream: context.read<UserRepository>().watchUser(uid),
-              builder: (context, snap) {
-                if (snap.hasError) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      '${snap.error}',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
+              );
+            }
+            if (snap.connectionState == ConnectionState.waiting &&
+                !snap.hasData) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final code = snap.data?.data()?['inviteCode'] as String?;
+            if (code == null || code.isEmpty) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Icon(
+                    Icons.qr_code_2_outlined,
+                    size: 48,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.pairingInviteCodeMissingBody,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
-                  );
-                }
-                if (snap.connectionState == ConnectionState.waiting &&
-                    !snap.hasData) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                final code = snap.data?.data()?['inviteCode'] as String?;
-                if (code == null || code.isEmpty) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Icon(
-                        Icons.qr_code_2_outlined,
-                        size: 48,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        l10n.pairingInviteCodeMissingBody,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                      ),
-                      const SizedBox(height: 20),
-                      FilledButton(
-                        onPressed: _busyEnsureCode ? null : _ensureCode,
-                        child: Text(l10n.pairingCodeLoadRetry),
-                      ),
-                    ],
-                  );
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      l10n.pairingYourCode,
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    SelectableText(
-                      code,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            letterSpacing: 4,
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton.tonalIcon(
-                      onPressed: () => _share(code),
-                      icon: const Icon(Icons.share_outlined),
-                      label: Text(l10n.pairingShare),
-                    ),
-                  ],
-                );
-              },
-            ),
-          const SizedBox(height: 36),
-          Text(
-            l10n.pairingCodeHint,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _codeCtrl,
-            textCapitalization: TextCapitalization.characters,
-            autocorrect: false,
-            decoration: InputDecoration(
-              hintText: l10n.pairingCodeHint,
-            ),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busyConnect ? null : _accept,
-            child: _busyConnect
-                ? const SizedBox(
-                    height: 22,
-                    width: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
-                  )
-                : Text(l10n.pairingConnect),
-          ),
-          const SizedBox(height: 28),
-          Center(
-            child: TextButton(
-              onPressed: _anyBusy ? null : _logout,
-              child: Text(l10n.settingsLogout),
-            ),
-          ),
-          if (_pairingDiagnostic != null &&
-              MediaQuery.sizeOf(context).width < 520) ...[
-            const SizedBox(height: 20),
-            _diagnosticCard(context),
-          ],
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton(
+                    onPressed: _busyEnsureCode ? null : _ensureCode,
+                    child: Text(l10n.pairingCodeLoadRetry),
+                  ),
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  l10n.pairingYourCode,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 8),
+                SelectableText(
+                  code,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.headlineSmall?.copyWith(letterSpacing: 4),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.tonalIcon(
+                  onPressed: _busyShare ? null : () => _share(code),
+                  icon: const Icon(Icons.share_outlined),
+                  label: _busyShare
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(l10n.pairingShare),
+                ),
+              ],
+            );
+          },
+        ),
+      const SizedBox(height: 36),
+      Text(
+        l10n.pairingCodeHint,
+        style: Theme.of(context).textTheme.titleMedium,
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _codeCtrl,
+        textCapitalization: TextCapitalization.characters,
+        autocorrect: false,
+        decoration: InputDecoration(hintText: l10n.pairingCodeHint),
+      ),
+      const SizedBox(height: 16),
+      FilledButton(
+        onPressed: _busyConnect ? null : _accept,
+        child: _busyConnect
+            ? const SizedBox(
+                height: 22,
+                width: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              )
+            : Text(l10n.pairingConnect),
+      ),
+      const SizedBox(height: 28),
+      Center(
+        child: TextButton(
+          onPressed: _anyBusy ? null : _logout,
+          child: Text(l10n.settingsLogout),
+        ),
+      ),
+      if (_pairingDiagnostic != null &&
+          MediaQuery.sizeOf(context).width < 520) ...[
+        const SizedBox(height: 20),
+        _diagnosticCard(context),
+      ],
     ];
   }
 
@@ -276,13 +281,17 @@ class _PairingScreenState extends State<PairingScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.bug_report_outlined, size: 18, color: scheme.primary),
+                Icon(
+                  Icons.bug_report_outlined,
+                  size: 18,
+                  color: scheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   '연결 시도 진단',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: scheme.onSurface,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(color: scheme.onSurface),
                 ),
               ],
             ),
@@ -311,9 +320,7 @@ class _PairingScreenState extends State<PairingScreen> {
     final formChildren = _formChildren(l10n, uid);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.pairingTitle),
-      ),
+      appBar: AppBar(title: Text(l10n.pairingTitle)),
       body: showSidePanel
           ? Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -339,10 +346,7 @@ class _PairingScreenState extends State<PairingScreen> {
                 ),
               ],
             )
-          : ListView(
-              padding: const EdgeInsets.all(24),
-              children: formChildren,
-            ),
+          : ListView(padding: const EdgeInsets.all(24), children: formChildren),
     );
   }
 }
