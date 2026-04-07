@@ -1,0 +1,34 @@
+#!/usr/bin/expect -f
+# 사용: PROJECT_ROOT 환경변수 필수. 인자: device-id
+if {$argc < 1} {
+  puts stderr "usage: PROJECT_ROOT=/path flutter_run_hot.expect <device-id>"
+  exit 1
+}
+set device [lindex $argv 0]
+if {![info exists env(PROJECT_ROOT)]} {
+  puts stderr "PROJECT_ROOT not set"
+  exit 1
+}
+set root $env(PROJECT_ROOT)
+cd $root
+
+set timeout 900
+log_user 1
+spawn flutter run -d $device
+
+expect {
+  -re {Flutter run key commands\.} {}
+  timeout {
+    puts stderr "\nexpect: 타임아웃(빌드가 너무 오래 걸리면 timeout 값을 늘리세요)"
+    exit 2
+  }
+  eof {
+    puts stderr "\nexpect: flutter run이 종료됨"
+    exit 3
+  }
+}
+
+send "r\r"
+puts "\n\[scripts\] 핫 리로드(r) 1회 전송함. 이후 이 터미널에서 r / R / q 사용.\n"
+
+interact
