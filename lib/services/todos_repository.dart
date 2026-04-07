@@ -15,6 +15,7 @@ class CoupleTodo {
     required this.category,
     required this.colorKey,
     required this.sortOrder,
+    required this.hasExplicitSortOrder,
     this.dueAt,
   });
 
@@ -31,6 +32,7 @@ class CoupleTodo {
   final String category;
   final String colorKey;
   final double sortOrder;
+  final bool hasExplicitSortOrder;
 
   factory CoupleTodo.fromDoc(DocumentSnapshot<Map<String, dynamic>> d) {
     final m = d.data() ?? const {};
@@ -52,7 +54,8 @@ class CoupleTodo {
       itemType: m['itemType'] as String? ?? 'todo',
       category: m['category'] as String? ?? '',
       colorKey: m['colorKey'] as String? ?? 'rose',
-      sortOrder: rawSort ?? createdAt.microsecondsSinceEpoch.toDouble(),
+      sortOrder: rawSort ?? -createdAt.microsecondsSinceEpoch.toDouble(),
+      hasExplicitSortOrder: rawSort != null,
     );
   }
 }
@@ -147,7 +150,8 @@ class TodosRepository {
           ? category.trim().substring(0, 30)
           : category.trim(),
       'colorKey': colorKey,
-      'sortOrder': DateTime.now().microsecondsSinceEpoch.toDouble(),
+      // 기본값은 최신 메모가 위에 오도록 음수 timestamp를 사용한다.
+      'sortOrder': -DateTime.now().microsecondsSinceEpoch.toDouble(),
       'createdBy': uid,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
