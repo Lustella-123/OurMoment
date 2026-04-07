@@ -366,17 +366,19 @@ class _MemoScreenState extends State<MemoScreen> {
     var category = current?.category ?? '';
     var colorKey = current?.colorKey ?? 'rose';
     DateTime? due = current?.dueAt;
+    var saving = false;
     try {
       final categories = await repo.watchCategories(coupleId).first;
       if (!context.mounted) {
         return;
       }
-      await showModalBottomSheet<void>(
+      await showModalBottomSheet<bool>(
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
         builder: (ctx) => StatefulBuilder(
           builder: (ctx, setModal) {
+            final theme = Theme.of(ctx);
             return Padding(
               padding: EdgeInsets.only(
                 left: 16,
@@ -393,7 +395,7 @@ class _MemoScreenState extends State<MemoScreen> {
                       current == null
                           ? l10n.memoCreateTitle
                           : l10n.memoEditTitle,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -438,9 +440,7 @@ class _MemoScreenState extends State<MemoScreen> {
                                   color: e.value.withValues(alpha: 0.9),
                                   border: Border.all(
                                     color: colorKey == e.key
-                                        ? Theme.of(
-                                            context,
-                                          ).colorScheme.onSurface
+                                        ? theme.colorScheme.onSurface
                                         : Colors.transparent,
                                     width: 1.4,
                                   ),
@@ -501,37 +501,47 @@ class _MemoScreenState extends State<MemoScreen> {
                     ],
                     const SizedBox(height: 10),
                     FilledButton(
-                      onPressed: () async {
-                        final title = titleCtrl.text.trim();
-                        if (title.isEmpty) return;
-                        try {
-                          if (current == null) {
-                            await repo.addTodo(
-                              coupleId: coupleId,
-                              title: title,
-                              note: noteCtrl.text,
-                              itemType: itemType,
-                              category: category,
-                              colorKey: colorKey,
-                              dueAt: itemType == 'todo' ? due : null,
-                            );
-                          } else {
-                            await repo.updateTodo(
-                              coupleId: coupleId,
-                              todoId: current.id,
-                              title: title,
-                              note: noteCtrl.text,
-                              itemType: itemType,
-                              category: category,
-                              colorKey: colorKey,
-                              dueAt: itemType == 'todo' ? due : null,
-                            );
-                          }
-                          if (ctx.mounted) Navigator.pop(ctx);
-                        } catch (e) {
-                          _showError(e);
-                        }
-                      },
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              final title = titleCtrl.text.trim();
+                              if (title.isEmpty) return;
+                              setModal(() => saving = true);
+                              try {
+                                if (current == null) {
+                                  await repo.addTodo(
+                                    coupleId: coupleId,
+                                    title: title,
+                                    note: noteCtrl.text,
+                                    itemType: itemType,
+                                    category: category,
+                                    colorKey: colorKey,
+                                    dueAt: itemType == 'todo' ? due : null,
+                                  );
+                                } else {
+                                  await repo.updateTodo(
+                                    coupleId: coupleId,
+                                    todoId: current.id,
+                                    title: title,
+                                    note: noteCtrl.text,
+                                    itemType: itemType,
+                                    category: category,
+                                    colorKey: colorKey,
+                                    dueAt: itemType == 'todo' ? due : null,
+                                  );
+                                }
+                                if (!ctx.mounted) return;
+                                FocusScope.of(ctx).unfocus();
+                                Navigator.of(ctx).pop(true);
+                              } catch (e) {
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(
+                                    ctx,
+                                  ).showSnackBar(SnackBar(content: Text('$e')));
+                                  setModal(() => saving = false);
+                                }
+                              }
+                            },
                       child: Text(
                         current == null ? l10n.memoAdd : l10n.profileSave,
                       ),
@@ -546,7 +556,12 @@ class _MemoScreenState extends State<MemoScreen> {
     } finally {
       titleCtrl.dispose();
       noteCtrl.dispose();
-      if (mounted) setState(() => _openingEditor = false);
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _openingEditor = false);
+        });
+      }
     }
   }
 }
