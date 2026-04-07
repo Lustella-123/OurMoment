@@ -78,10 +78,19 @@ class TodosRepository {
 
   Stream<List<CoupleTodo>> watchTodos(String coupleId) {
     return _todosCol(coupleId)
-        .orderBy('createdAt', descending: true)
-        .limit(300)
         .snapshots()
-        .map((s) => s.docs.map(CoupleTodo.fromDoc).toList());
+        .map((s) {
+          final list = s.docs.map(CoupleTodo.fromDoc).toList();
+          list.sort((a, b) {
+            final bySort = a.sortOrder.compareTo(b.sortOrder);
+            if (bySort != 0) return bySort;
+            return b.createdAt.compareTo(a.createdAt);
+          });
+          if (list.length > 300) {
+            return list.sublist(0, 300);
+          }
+          return list;
+        });
   }
 
   Stream<List<String>> watchCategories(String coupleId) {
