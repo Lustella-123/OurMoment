@@ -227,6 +227,9 @@ service cloud.firestore {
         && (!('colorKey' in request.resource.data)
           || (request.resource.data.colorKey is string
             && request.resource.data.colorKey.size() <= 20))
+        && (!('sortOrder' in request.resource.data)
+          || request.resource.data.sortOrder is int
+          || request.resource.data.sortOrder is float)
         && request.resource.data.isDone is bool
         && request.resource.data.likeCount == 0
         && request.resource.data.createdBy == request.auth.uid
@@ -253,13 +256,21 @@ service cloud.firestore {
         && (!('colorKey' in request.resource.data)
           || (request.resource.data.colorKey is string
             && request.resource.data.colorKey.size() <= 20))
+        && (!('sortOrder' in request.resource.data)
+          || request.resource.data.sortOrder is int
+          || request.resource.data.sortOrder is float)
         && request.resource.data.isDone is bool
         && (
           !('likeCount' in request.resource.data)
           || (request.resource.data.likeCount is int
             && request.resource.data.likeCount >= 0)
         )
-        && request.resource.data.createdBy == resource.data.createdBy;
+        && request.resource.data.createdBy == resource.data.createdBy
+        && (
+          request.auth.uid == resource.data.createdBy
+          || request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['sortOrder', 'updatedAt'])
+        );
       allow delete: if isCoupleMember(coupleId);
     }
 
