@@ -1,149 +1,81 @@
-import 'dart:async';
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:intl/date_symbol_data_local.dart';
-import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'app/our_moment_app.dart';
 import 'firebase_options.dart';
-import 'services/auth_repository.dart';
-import 'services/calendar_events_repository.dart';
-import 'services/couple_repository.dart';
-import 'services/moments_repository.dart';
-import 'services/todos_repository.dart';
-import 'services/user_repository.dart';
-import 'state/app_settings.dart';
-import 'state/main_shell_controller.dart';
-import 'theme/app_theme.dart';
-import 'ui/splash/app_startup_splash.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  String? bootstrapError;
+
+  String? firebaseError;
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
-    ).timeout(const Duration(seconds: 8));
+    );
   } catch (e) {
-    bootstrapError = '초기 연결에 실패했습니다. 네트워크를 확인해 주세요.';
-    debugPrint('main firebase init failed: $e');
+    firebaseError = e.toString();
   }
-  runApp(_BootstrapRoot(startupError: bootstrapError));
+
+  runApp(StarterApp(firebaseError: firebaseError));
 }
 
-class _BootstrapRoot extends StatefulWidget {
-  const _BootstrapRoot({this.startupError});
+class StarterApp extends StatelessWidget {
+  const StarterApp({super.key, this.firebaseError});
 
-  final String? startupError;
-
-  @override
-  State<_BootstrapRoot> createState() => _BootstrapRootState();
-}
-
-class _BootstrapRootState extends State<_BootstrapRoot> {
-  Widget? _ready;
-  AppThemePalette _startupPalette = AppTheme.defaultPalette;
-  String? _startupError;
-
-  @override
-  void initState() {
-    super.initState();
-    _startupError = widget.startupError;
-    unawaited(_init());
-  }
-
-  Future<void> _init() async {
-    setState(() => _startupError = null);
-    try {
-      final startedAt = DateTime.now();
-      final prefs = await SharedPreferences.getInstance();
-      final settings = AppSettings(prefs);
-      await settings.load();
-      if (mounted) {
-        setState(() => _startupPalette = settings.themePalette);
-      }
-
-      await initializeDateFormatting('ko');
-      await initializeDateFormatting('en');
-      if (Firebase.apps.isEmpty) {
-        await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        ).timeout(const Duration(seconds: 8));
-      }
-
-      try {
-        await MobileAds.instance.initialize();
-      } catch (e) {
-        debugPrint('MobileAds.initialize 실패: $e');
-      }
-
-      final elapsed = DateTime.now().difference(startedAt);
-      final remain = const Duration(seconds: 2) - elapsed;
-      if (remain > Duration.zero) {
-        await Future<void>.delayed(remain);
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _ready = MultiProvider(
-          providers: [
-            ChangeNotifierProvider.value(value: settings),
-            ChangeNotifierProvider(create: (_) => MainShellController()),
-            Provider(create: (_) => AuthRepository()),
-            Provider(create: (_) => UserRepository()),
-            Provider(create: (_) => CoupleRepository()),
-            Provider(create: (_) => MomentsRepository()),
-            Provider(create: (_) => CalendarEventsRepository()),
-            Provider(create: (_) => TodosRepository()),
-          ],
-          child: const OurMomentApp(),
-        );
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _startupError = '연결이 불안정합니다. 잠시 후 다시 시도해 주세요.';
-      });
-      debugPrint('앱 초기화 실패: $e');
-    }
-  }
+  final String? firebaseError;
 
   @override
   Widget build(BuildContext context) {
-    if (_startupError != null) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: Scaffold(
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.wifi_off_rounded, size: 42),
-                  const SizedBox(height: 10),
-                  Text(_startupError!, textAlign: TextAlign.center),
-                  const SizedBox(height: 14),
-                  FilledButton(
-                    onPressed: () => unawaited(_init()),
-                    child: const Text('Retry'),
-                  ),
-                ],
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: StarterHome(firebaseError: firebaseError),
+    );
+  }
+}
+
+class StarterHome extends StatelessWidget {
+  const StarterHome({super.key, this.firebaseError});
+
+  final String? firebaseError;
+
+  @override
+  Widget build(BuildContext context) {
+    final options = DefaultFirebaseOptions.currentPlatform;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('OurMoment Starter'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '앱 내부 코드를 초기화했습니다.',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            const Text('이제 이 프로젝트를 기준으로 새로 개발을 시작하면 됩니다.'),
+            const SizedBox(height: 24),
+            Text('Firebase Project: ${options.projectId}'),
+            Text('Storage Bucket: ${options.storageBucket}'),
+            const SizedBox(height: 16),
+            Text(
+              firebaseError == null ? 'Firebase 초기화: 성공' : 'Firebase 초기화: 실패',
+              style: TextStyle(
+                color: firebaseError == null ? Colors.green : Colors.red,
+                fontWeight: FontWeight.w600,
               ),
             ),
-          ),
+            if (firebaseError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                firebaseError!,
+                style: const TextStyle(color: Colors.red),
+              ),
+            ],
+          ],
         ),
-      );
-    }
-    if (_ready == null) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: AppStartupSplash(palette: _startupPalette),
-      );
-    }
-    return _ready!;
+      ),
+    );
   }
 }
