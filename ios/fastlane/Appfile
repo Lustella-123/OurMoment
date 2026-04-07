@@ -1,0 +1,5 @@
+app_identifier(ENV.fetch("APP_IDENTIFIER", "com.jscompany.ourmoment"))
+
+apple_id(ENV["APPLE_ID"]) if ENV["APPLE_ID"] && !ENV["APPLE_ID"].empty?
+itc_team_id(ENV["APP_STORE_CONNECT_TEAM_ID"]) if ENV["APP_STORE_CONNECT_TEAM_ID"] && !ENV["APP_STORE_CONNECT_TEAM_ID"].empty?
+team_id(ENV["DEVELOPER_PORTAL_TEAM_ID"]) if ENV["DEVELOPER_PORTAL_TEAM_ID"] && !ENV["DEVELOPER_PORTAL_TEAM_ID"].empty?
