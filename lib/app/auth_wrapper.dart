@@ -103,12 +103,24 @@ class _ProfileBootstrapState extends State<_ProfileBootstrap> {
   late Future<void> _future;
   String? _futureUid;
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
+  void _bindFutureIfNeeded() {
     if (_futureUid == widget.user.uid) return;
     _futureUid = widget.user.uid;
     _future = context.read<UserRepository>().ensureUserProfile(widget.user);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _bindFutureIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProfileBootstrap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user.uid != widget.user.uid) {
+      _bindFutureIfNeeded();
+    }
   }
 
   void _retry() {

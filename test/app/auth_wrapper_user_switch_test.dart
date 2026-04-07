@@ -12,6 +12,7 @@ import 'package:ourmoment/services/todos_repository.dart';
 import 'package:ourmoment/services/user_repository.dart';
 import 'package:ourmoment/state/app_settings.dart';
 import 'package:ourmoment/state/main_shell_controller.dart';
+import 'package:ourmoment/theme/app_theme.dart';
 
 class _FakeUser extends Fake implements User {
   _FakeUser(this._uid);
@@ -35,6 +36,9 @@ class _FakeAuthRepository extends Fake implements AuthRepository {
   Stream<User?> userChanges() => _controller;
 
   @override
+  Stream<User?> authStateChanges() => _controller;
+
+  @override
   bool needsEmailVerification(User user) => false;
 }
 
@@ -45,6 +49,17 @@ class _RecordingUserRepository extends Fake implements UserRepository {
   Future<void> ensureUserProfile(User user) async {
     ensuredUids.add(user.uid);
   }
+
+  @override
+  Stream<dynamic> watchUser(String uid) => const Stream.empty();
+}
+
+class _FakeAppSettings extends ChangeNotifier implements AppSettings {
+  @override
+  String get languageCode => 'ko';
+
+  @override
+  AppThemePalette get themePalette => AppTheme.defaultPalette;
 }
 
 class _NoopCoupleRepository extends Fake implements CoupleRepository {}
@@ -55,11 +70,6 @@ class _NoopCalendarEventsRepository extends Fake
     implements CalendarEventsRepository {}
 
 class _NoopTodosRepository extends Fake implements TodosRepository {}
-
-class _NoopAppSettings extends Fake implements AppSettings {
-  @override
-  String get languageCode => 'ko';
-}
 
 void main() {
   testWidgets('AuthWrapper는 사용자 UID 변경 시 ensureUserProfile를 다시 호출한다', (
@@ -86,7 +96,7 @@ void main() {
           ChangeNotifierProvider<MainShellController>(
             create: (_) => MainShellController(),
           ),
-          ChangeNotifierProvider<AppSettings>(create: (_) => _NoopAppSettings()),
+          ChangeNotifierProvider<AppSettings>(create: (_) => _FakeAppSettings()),
         ],
         child: const MaterialApp(home: AuthWrapper()),
       ),

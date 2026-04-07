@@ -3,6 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ourmoment/services/calendar_events_repository.dart';
 
+class _FakeUserInfo extends Fake implements UserInfo {
+  @override
+  String get providerId => 'google.com';
+}
+
 class _FakeAuth extends Fake implements FirebaseAuth {
   _FakeAuth(this._user);
 
@@ -19,6 +24,12 @@ class _FakeUser extends Fake implements User {
 
   @override
   String get uid => _uid;
+
+  @override
+  bool get emailVerified => true;
+
+  @override
+  List<UserInfo> get providerData => <UserInfo>[_FakeUserInfo()];
 }
 
 void main() {
