@@ -1,0 +1,7 @@
+{
+  "@@locale": "ko",
+  "appTitle": "OurMoment Starter",
+  "@appTitle": {
+    "description": "Starter app title"
+  }
+}
