@@ -10,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app/our_moment_app.dart';
 import 'firebase_options.dart';
 import 'services/auth_repository.dart';
-import 'services/calendar_events_repository.dart';
 import 'services/couple_repository.dart';
 import 'services/couple_upload_policy_service.dart';
 import 'services/moments_repository.dart';
@@ -101,7 +100,6 @@ class _BootstrapRootState extends State<_BootstrapRoot> {
             Provider(create: (_) => CoupleRepository()),
             Provider(create: (_) => MomentsRepository()),
             Provider(create: (_) => CoupleUploadPolicyService()),
-            Provider(create: (_) => CalendarEventsRepository()),
             Provider(create: (_) => TodosRepository()),
           ],
           child: const OurMomentApp(),
