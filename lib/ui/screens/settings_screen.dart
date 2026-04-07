@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:ourmoment/l10n/app_localizations.dart';
@@ -68,7 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             radius: 32,
                             backgroundColor: scheme.surfaceContainerHigh,
                             backgroundImage: photo != null && photo.isNotEmpty
-                                ? NetworkImage(photo)
+                                ? CachedNetworkImageProvider(photo)
                                 : null,
                             child: photo == null || photo.isEmpty
                                 ? Icon(Icons.person_rounded,

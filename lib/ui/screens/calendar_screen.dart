@@ -336,6 +336,8 @@ class _CalendarBodyState extends State<_CalendarBody> {
                         child: CachedNetworkImage(
                           imageUrl: photoUrls[i],
                           fit: BoxFit.cover,
+                          memCacheWidth: 1200,
+                          memCacheHeight: 1200,
                           placeholder: (context, url) => Container(
                             color: Theme.of(
                               context,
@@ -1263,10 +1265,22 @@ class _MomentTemplateCard extends StatelessWidget {
                 child: SizedBox(
                   width: 74,
                   height: 74,
-                  child: Image.network(
-                    moment.imageUrls.first,
+                  child: CachedNetworkImage(
+                    imageUrl: moment.imageUrls.first,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.image),
+                    memCacheWidth: 200,
+                    memCacheHeight: 200,
+                    placeholder: (context, url) => Container(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      alignment: Alignment.center,
+                      child: const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) =>
+                        const Icon(Icons.image),
                   ),
                 ),
               ),

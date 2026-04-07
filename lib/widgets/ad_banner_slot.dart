@@ -108,22 +108,25 @@ class _AdBannerSlotState extends State<AdBannerSlot> {
   Widget build(BuildContext context) {
     if (widget.settings.isPremium) return const SizedBox.shrink();
     if (_failed) return const SizedBox.shrink();
-    final h = _loaded && _ad != null ? _ad!.size.height.toDouble() : 0.0;
-    if (h <= 0) {
-      return _loading
-          ? SizedBox(
-              height: 50,
-              child: Center(
-                child: SizedBox.square(
+    // 배너 로딩 전/후 높이를 고정해 레이아웃 점프를 줄인다.
+    final h = _loaded && _ad != null
+        ? _ad!.size.height.toDouble()
+        : AdSize.banner.height.toDouble();
+    if (!_loaded || _ad == null) {
+      return SizedBox(
+        height: h,
+        child: Center(
+          child: _loading
+              ? SizedBox.square(
                   dimension: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     color: Theme.of(context).colorScheme.primary,
                   ),
-                ),
-              ),
-            )
-          : const SizedBox.shrink();
+                )
+              : const SizedBox.shrink(),
+        ),
+      );
     }
     return SizedBox(
       width: _ad!.size.width.toDouble(),

@@ -1,19 +1,10 @@
 # ourmoment
 
-A new Flutter project.
+커플 기록 앱 `ourmoment` Flutter 프로젝트입니다.
 
-## Getting Started
+## 빠른 시작
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+아래 순서대로 실행하면 Cloud/로컬 환경에서 동일하게 앱 개발을 시작할 수 있습니다.
 
 ## Cursor/Cloud 환경 빠른 셋업
 
@@ -29,6 +20,16 @@ samples, guidance on mobile development, and a full API reference.
 
 # 4) (선택) Firestore/Storage 규칙·인덱스 배포
 ./scripts/deploy_firebase_rules.sh
+```
+
+## 개발 시 자주 쓰는 명령
+
+```bash
+# 앱 실행
+flutter run
+
+# iOS 핫리로드 보조 스크립트(필요 시)
+bash scripts/run_ios_with_hot_reload.sh
 ```
 
 ## 최신 반영 요약 (한국어)

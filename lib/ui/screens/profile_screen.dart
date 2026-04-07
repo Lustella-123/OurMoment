@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:ourmoment/l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
@@ -140,7 +141,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ).colorScheme.surfaceContainerHighest,
                           backgroundImage:
                               photoUrl != null && photoUrl.isNotEmpty
-                              ? NetworkImage(photoUrl)
+                              ? CachedNetworkImageProvider(photoUrl)
                               : null,
                           child: photoUrl == null || photoUrl.isEmpty
                               ? Icon(

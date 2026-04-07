@@ -78,6 +78,8 @@ class _MomentCardState extends State<MomentCard> {
                         return CachedNetworkImage(
                           imageUrl: urls[i],
                           fit: BoxFit.cover,
+                          memCacheWidth: 1200,
+                          memCacheHeight: 1200,
                           placeholder: (ctx, _) =>
                               const Center(child: CircularProgressIndicator()),
                           errorWidget: (_, __, ___) => Container(
