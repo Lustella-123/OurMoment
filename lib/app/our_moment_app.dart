@@ -16,9 +16,9 @@ class OurMomentApp extends StatelessWidget {
         return MaterialApp(
           onGenerateTitle: (ctx) => AppLocalizations.of(ctx)!.appTitle,
           debugShowCheckedModeBanner: false,
-          theme: AppTheme.light(
-            palette: settings.themePalette,
-          ),
+          theme: AppTheme.light(palette: settings.themePalette),
+          darkTheme: AppTheme.dark(palette: settings.themePalette),
+          themeMode: ThemeMode.system,
           locale: Locale(settings.languageCode),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,

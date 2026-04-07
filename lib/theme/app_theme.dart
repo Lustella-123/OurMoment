@@ -102,26 +102,24 @@ class AppTheme {
   static AppThemePalette get defaultPalette => palettes.first;
 
   static AppThemePalette paletteById(String? id) {
-    return palettes.firstWhere(
-      (p) => p.id == id,
-      orElse: () => defaultPalette,
-    );
+    return palettes.firstWhere((p) => p.id == id, orElse: () => defaultPalette);
   }
 
   static ThemeData light({required AppThemePalette palette}) {
     final background = palette.background;
     final accent = palette.accent;
-    final scheme = ColorScheme.fromSeed(
-      seedColor: accent,
-      brightness: Brightness.light,
-      surface: background,
-      primary: accent,
-      dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
-    ).copyWith(
-      surfaceTint: Colors.transparent,
-      secondary: palette.c3,
-      tertiary: palette.c2,
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: accent,
+          brightness: Brightness.light,
+          surface: background,
+          primary: accent,
+          dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+        ).copyWith(
+          surfaceTint: Colors.transparent,
+          secondary: palette.c3,
+          tertiary: palette.c2,
+        );
 
     final outline = scheme.outline.withValues(alpha: 0.35);
 
@@ -167,6 +165,89 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Color.lerp(palette.c1, palette.c2, 0.55),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: outline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: outline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: accent, width: 2),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  static ThemeData dark({required AppThemePalette palette}) {
+    final accent = palette.accent;
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: accent,
+          brightness: Brightness.dark,
+          primary: accent,
+          dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+        ).copyWith(
+          surfaceTint: Colors.transparent,
+          secondary: palette.c3.withValues(alpha: 0.85),
+          tertiary: palette.c2.withValues(alpha: 0.7),
+        );
+
+    final outline = scheme.outline.withValues(alpha: 0.45);
+    final bg = Color.lerp(Colors.black, scheme.surface, 0.7)!;
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: bg,
+      splashFactory: InkSparkle.splashFactory,
+      appBarTheme: AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+        scrolledUnderElevation: 0.5,
+        backgroundColor: bg,
+        foregroundColor: scheme.onSurface,
+        surfaceTintColor: Colors.transparent,
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        color: Color.lerp(scheme.surface, scheme.surfaceContainerHigh, 0.6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: Color.lerp(
+          scheme.surfaceContainerLow,
+          scheme.surfaceContainer,
+          0.5,
+        ),
+        indicatorColor: scheme.primary.withValues(alpha: 0.34),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: scheme.surfaceContainerHigh.withValues(alpha: 0.75),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: outline),

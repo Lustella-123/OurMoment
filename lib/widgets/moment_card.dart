@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:ourmoment/l10n/app_localizations.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 
 import '../services/moments_repository.dart';
@@ -69,18 +70,17 @@ class _MomentCardState extends State<MomentCard> {
                     PageView.builder(
                       controller: _pageCtrl,
                       itemCount: urls.length,
-                      onPageChanged: (i) => setState(() => _page = i),
+                      onPageChanged: (i) {
+                        if (!mounted) return;
+                        setState(() => _page = i);
+                      },
                       itemBuilder: (ctx, i) {
-                        return Image.network(
-                          urls[i],
+                        return CachedNetworkImage(
+                          imageUrl: urls[i],
                           fit: BoxFit.cover,
-                          loadingBuilder: (ctx, child, prog) {
-                            if (prog == null) return child;
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          },
-                          errorBuilder: (_, __, ___) => Container(
+                          placeholder: (ctx, _) =>
+                              const Center(child: CircularProgressIndicator()),
+                          errorWidget: (_, __, ___) => Container(
                             color: Theme.of(
                               context,
                             ).colorScheme.surfaceContainerHighest,

@@ -58,6 +58,8 @@ class CalendarEventsRepository {
   String _dayKey(DateTime local) =>
       DateFormat('yyyy-MM-dd').format(DateTime(local.year, local.month, local.day));
 
+  String toDayKey(DateTime local) => _dayKey(local);
+
   Future<List<CoupleCalendarEvent>> loadEventsInMonth(
     String coupleId,
     DateTime month,
@@ -82,7 +84,9 @@ class CalendarEventsRepository {
       });
       return list;
     } on FirebaseException catch (e) {
-      if (e.code == 'failed-precondition') return const <CoupleCalendarEvent>[];
+      if (e.code == 'failed-precondition') {
+        throw StateError('calendar_index_missing_month');
+      }
       rethrow;
     }
   }
@@ -105,7 +109,9 @@ class CalendarEventsRepository {
       });
       return list;
     } on FirebaseException catch (e) {
-      if (e.code == 'failed-precondition') return const <CoupleCalendarEvent>[];
+      if (e.code == 'failed-precondition') {
+        throw StateError('calendar_index_missing_day');
+      }
       rethrow;
     }
   }
@@ -141,6 +147,7 @@ class CalendarEventsRepository {
     required String eventId,
     required String title,
     required String note,
+    required DateTime day,
     required String timeText,
     required String colorKey,
     required String shapeKey,
@@ -152,6 +159,7 @@ class CalendarEventsRepository {
     await _col(coupleId).doc(eventId).update({
       'title': t.length > 80 ? t.substring(0, 80) : t,
       'note': note.trim().length > 500 ? note.trim().substring(0, 500) : note.trim(),
+      'dayKey': _dayKey(day),
       'timeText': _sanitizeTimeText(timeText),
       'colorKey': colorKey,
       'shapeKey': shapeKey,

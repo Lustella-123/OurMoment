@@ -614,6 +614,12 @@ abstract class AppLocalizations {
   /// **'이미 연결된 계정이에요.'**
   String get inviteErrorAlreadyPaired;
 
+  /// No description provided for @inviteErrorAlreadyClaimed.
+  ///
+  /// In ko, this message translates to:
+  /// **'이 초대 코드는 이미 사용이 시작되었어요.'**
+  String get inviteErrorAlreadyClaimed;
+
   /// No description provided for @inviteErrorFull.
   ///
   /// In ko, this message translates to:
