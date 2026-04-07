@@ -385,7 +385,9 @@ class _MemoScreenState extends State<MemoScreen> {
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
-                      initialValue: category.isEmpty ? null : category,
+                      // Flutter SDK 버전 간(initialValue/value) API 차이를 흡수하기 위해 value 사용.
+                      // ignore: deprecated_member_use
+                      value: category.isEmpty ? null : category,
                       hint: const Text('카테고리 선택 (선택)'),
                       items: categories
                           .map(

@@ -819,7 +819,9 @@ class _CalendarBodyState extends State<_CalendarBody> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<int>(
-                          initialValue: selectedYear,
+                          // Flutter 버전 호환(구버전 initialValue 미지원)을 위해 value 사용.
+                          // ignore: deprecated_member_use
+                          value: selectedYear,
                           decoration: const InputDecoration(
                             isDense: true,
                             border: OutlineInputBorder(),
@@ -836,7 +838,9 @@ class _CalendarBodyState extends State<_CalendarBody> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: DropdownButtonFormField<int>(
-                          initialValue: selectedMonth,
+                          // Flutter 버전 호환(구버전 initialValue 미지원)을 위해 value 사용.
+                          // ignore: deprecated_member_use
+                          value: selectedMonth,
                           decoration: const InputDecoration(
                             isDense: true,
                             border: OutlineInputBorder(),
