@@ -20,6 +20,7 @@ class MemoScreen extends StatefulWidget {
 class _MemoScreenState extends State<MemoScreen> {
   String _selectedCategory = 'all';
   int _reloadTick = 0;
+  bool _openingEditor = false;
 
   static const _cardColors = <String, Color>{
     'rose': Color(0x26FF8FA3),
@@ -48,6 +49,26 @@ class _MemoScreenState extends State<MemoScreen> {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: context.read<UserRepository>().watchUser(user.uid),
       builder: (context, userSnap) {
+        if (userSnap.hasError) {
+          return Scaffold(
+            appBar: AppBar(title: Text(l10n.memoTitle)),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  '메모 정보를 불러오지 못했어요.\n잠시 후 다시 시도해 주세요.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          );
+        }
+        if (!userSnap.hasData) {
+          return Scaffold(
+            appBar: AppBar(title: Text(l10n.memoTitle)),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
         final data = userSnap.data?.data();
         final coupleId = data?['coupleId'] as String?;
         final myName = ((data?['displayName'] as String?) ?? '').trim();
@@ -56,7 +77,9 @@ class _MemoScreenState extends State<MemoScreen> {
           floatingActionButton: (coupleId == null || coupleId.isEmpty)
               ? const SizedBox.shrink()
               : FloatingActionButton(
-                  onPressed: () => _openEditor(context, coupleId: coupleId),
+                  onPressed: _openingEditor
+                      ? null
+                      : () => _openEditor(context, coupleId: coupleId),
                   child: const Icon(Icons.edit),
                 ),
           body: Column(
@@ -79,6 +102,16 @@ class _MemoScreenState extends State<MemoScreen> {
                           coupleId,
                         ),
                         builder: (context, catSnap) {
+                          if (catSnap.hasError) {
+                            return const Center(
+                              child: Text('카테고리를 불러오지 못했어요.'),
+                            );
+                          }
+                          if (!catSnap.hasData) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
                           final categories = catSnap.data ?? const <String>[];
                           final effectiveSelected =
                               _selectedCategory == 'all' ||
@@ -131,6 +164,13 @@ class _MemoScreenState extends State<MemoScreen> {
                                       .read<TodosRepository>()
                                       .watchTodos(coupleId),
                                   builder: (context, snap) {
+                                    if (snap.hasError) {
+                                      return const Center(
+                                        child: Text(
+                                          '메모를 불러오지 못했어요. 다시 시도해 주세요.',
+                                        ),
+                                      );
+                                    }
                                     if (!snap.hasData) {
                                       return const Center(
                                         child: CircularProgressIndicator(),
@@ -145,6 +185,10 @@ class _MemoScreenState extends State<MemoScreen> {
                                           )
                                           .toList();
                                     }
+                                    list.sort(
+                                      (a, b) =>
+                                          a.sortOrder.compareTo(b.sortOrder),
+                                    );
                                     if (list.isEmpty) {
                                       return Center(
                                         child: Text(
@@ -153,66 +197,107 @@ class _MemoScreenState extends State<MemoScreen> {
                                         ),
                                       );
                                     }
-                                    return GridView.builder(
+                                    return ReorderableListView.builder(
                                       padding: const EdgeInsets.fromLTRB(
                                         14,
                                         8,
                                         14,
                                         14,
                                       ),
-                                      gridDelegate:
-                                          const SliverGridDelegateWithFixedCrossAxisCount(
-                                            crossAxisCount: 2,
-                                            mainAxisSpacing: 10,
-                                            crossAxisSpacing: 10,
-                                            childAspectRatio: 0.78,
-                                          ),
+                                      buildDefaultDragHandles: false,
                                       itemCount: list.length,
+                                      onReorder: (oldIndex, newIndex) async {
+                                        if (oldIndex < newIndex) {
+                                          newIndex -= 1;
+                                        }
+                                        if (oldIndex == newIndex) return;
+                                        final moving = list.removeAt(oldIndex);
+                                        list.insert(newIndex, moving);
+                                        final orderedIds = [
+                                          for (final t in list) t.id,
+                                        ];
+                                        try {
+                                          await context
+                                              .read<TodosRepository>()
+                                              .reorderTodos(
+                                                coupleId: coupleId,
+                                                orderedTodoIds: orderedIds,
+                                              );
+                                        } catch (e) {
+                                          _showError(e);
+                                        }
+                                      },
                                       itemBuilder: (_, i) {
                                         final t = list[i];
                                         final mine = t.createdBy == user.uid;
-                                        return _MemoBoardCard(
-                                          todo: t,
-                                          mine: mine,
-                                          name: mine
-                                              ? (myName.isEmpty ? '나' : myName)
-                                              : '상대',
-                                          color: _cardColor(t.colorKey),
-                                          isMono: isMono,
-                                          onTap: () => _openEditor(
-                                            context,
-                                            coupleId: coupleId,
-                                            current: t,
+                                        return Padding(
+                                          key: ValueKey(t.id),
+                                          padding: const EdgeInsets.only(
+                                            bottom: 10,
                                           ),
-                                          onToggleDone: t.itemType == 'todo'
-                                              ? (v) async {
-                                                  try {
-                                                    await context
-                                                        .read<TodosRepository>()
-                                                        .toggleDone(
-                                                          coupleId: coupleId,
-                                                          todoId: t.id,
-                                                          isDone: v,
-                                                        );
-                                                  } catch (e) {
-                                                    _showError(e);
+                                          child: _MemoBoardCard(
+                                            todo: t,
+                                            mine: mine,
+                                            name: mine
+                                                ? (myName.isEmpty
+                                                      ? '나'
+                                                      : myName)
+                                                : '상대',
+                                            color: _cardColor(t.colorKey),
+                                            isMono: isMono,
+                                            onTap: mine
+                                                ? () => _openEditor(
+                                                    context,
+                                                    coupleId: coupleId,
+                                                    current: t,
+                                                  )
+                                                : null,
+                                            onToggleDone:
+                                                mine && t.itemType == 'todo'
+                                                ? (v) async {
+                                                    try {
+                                                      await context
+                                                          .read<
+                                                            TodosRepository
+                                                          >()
+                                                          .toggleDone(
+                                                            coupleId: coupleId,
+                                                            todoId: t.id,
+                                                            isDone: v,
+                                                          );
+                                                    } catch (e) {
+                                                      _showError(e);
+                                                    }
                                                   }
-                                                }
-                                              : null,
-                                          onDelete: mine
-                                              ? () async {
-                                                  try {
-                                                    await context
-                                                        .read<TodosRepository>()
-                                                        .deleteTodo(
-                                                          coupleId: coupleId,
-                                                          todoId: t.id,
-                                                        );
-                                                  } catch (e) {
-                                                    _showError(e);
+                                                : null,
+                                            onDelete: mine
+                                                ? () async {
+                                                    try {
+                                                      await context
+                                                          .read<
+                                                            TodosRepository
+                                                          >()
+                                                          .deleteTodo(
+                                                            coupleId: coupleId,
+                                                            todoId: t.id,
+                                                          );
+                                                    } catch (e) {
+                                                      _showError(e);
+                                                    }
                                                   }
-                                                }
-                                              : null,
+                                                : null,
+                                            onDragHandle:
+                                                ReorderableDragStartListener(
+                                                  index: i,
+                                                  child: Icon(
+                                                    Icons
+                                                        .drag_indicator_rounded,
+                                                    color: Theme.of(
+                                                      context,
+                                                    ).colorScheme.outline,
+                                                  ),
+                                                ),
+                                          ),
                                         );
                                       },
                                     );
@@ -271,7 +356,8 @@ class _MemoScreenState extends State<MemoScreen> {
     required String coupleId,
     CoupleTodo? current,
   }) async {
-    final l10n = AppLocalizations.of(context)!;
+    if (_openingEditor) return;
+    if (mounted) setState(() => _openingEditor = true);
     final repo = context.read<TodosRepository>();
     final titleCtrl = TextEditingController(text: current?.title ?? '');
     final noteCtrl = TextEditingController(text: current?.note ?? '');
@@ -279,16 +365,19 @@ class _MemoScreenState extends State<MemoScreen> {
     var category = current?.category ?? '';
     var colorKey = current?.colorKey ?? 'rose';
     DateTime? due = current?.dueAt;
-    final categories = await repo.watchCategories(coupleId).first;
-    if (!context.mounted) return;
-
     try {
-      await showModalBottomSheet<void>(
+      final categories = await repo.watchCategories(coupleId).first;
+      if (!context.mounted) {
+        return;
+      }
+      final payload = await showModalBottomSheet<_MemoEditorPayload>(
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
         builder: (ctx) => StatefulBuilder(
           builder: (ctx, setModal) {
+            final theme = Theme.of(ctx);
+            final l10n = AppLocalizations.of(ctx)!;
             return Padding(
               padding: EdgeInsets.only(
                 left: 16,
@@ -305,7 +394,7 @@ class _MemoScreenState extends State<MemoScreen> {
                       current == null
                           ? l10n.memoCreateTitle
                           : l10n.memoEditTitle,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -321,6 +410,8 @@ class _MemoScreenState extends State<MemoScreen> {
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
+                      // Flutter SDK 버전 간(initialValue/value) API 차이를 흡수하기 위해 value 사용.
+                      // ignore: deprecated_member_use
                       value: category.isEmpty ? null : category,
                       hint: const Text('카테고리 선택 (선택)'),
                       items: categories
@@ -348,9 +439,7 @@ class _MemoScreenState extends State<MemoScreen> {
                                   color: e.value.withValues(alpha: 0.9),
                                   border: Border.all(
                                     color: colorKey == e.key
-                                        ? Theme.of(
-                                            context,
-                                          ).colorScheme.onSurface
+                                        ? theme.colorScheme.onSurface
                                         : Colors.transparent,
                                     width: 1.4,
                                   ),
@@ -411,36 +500,20 @@ class _MemoScreenState extends State<MemoScreen> {
                     ],
                     const SizedBox(height: 10),
                     FilledButton(
-                      onPressed: () async {
+                      onPressed: () {
                         final title = titleCtrl.text.trim();
                         if (title.isEmpty) return;
-                        try {
-                          if (current == null) {
-                            await repo.addTodo(
-                              coupleId: coupleId,
-                              title: title,
-                              note: noteCtrl.text,
-                              itemType: itemType,
-                              category: category,
-                              colorKey: colorKey,
-                              dueAt: itemType == 'todo' ? due : null,
-                            );
-                          } else {
-                            await repo.updateTodo(
-                              coupleId: coupleId,
-                              todoId: current.id,
-                              title: title,
-                              note: noteCtrl.text,
-                              itemType: itemType,
-                              category: category,
-                              colorKey: colorKey,
-                              dueAt: itemType == 'todo' ? due : null,
-                            );
-                          }
-                          if (ctx.mounted) Navigator.pop(ctx);
-                        } catch (e) {
-                          _showError(e);
-                        }
+                        FocusScope.of(ctx).unfocus();
+                        Navigator.of(ctx).pop(
+                          _MemoEditorPayload(
+                            title: title,
+                            note: noteCtrl.text,
+                            itemType: itemType,
+                            category: category,
+                            colorKey: colorKey,
+                            dueAt: itemType == 'todo' ? due : null,
+                          ),
+                        );
                       },
                       child: Text(
                         current == null ? l10n.memoAdd : l10n.profileSave,
@@ -453,11 +526,57 @@ class _MemoScreenState extends State<MemoScreen> {
           },
         ),
       );
+      if (payload == null) return;
+      try {
+        if (current == null) {
+          await repo.addTodo(
+            coupleId: coupleId,
+            title: payload.title,
+            note: payload.note,
+            itemType: payload.itemType,
+            category: payload.category,
+            colorKey: payload.colorKey,
+            dueAt: payload.dueAt,
+          );
+        } else {
+          await repo.updateTodo(
+            coupleId: coupleId,
+            todoId: current.id,
+            title: payload.title,
+            note: payload.note,
+            itemType: payload.itemType,
+            category: payload.category,
+            colorKey: payload.colorKey,
+            dueAt: payload.dueAt,
+          );
+        }
+      } catch (e) {
+        _showError(e);
+      }
     } finally {
       titleCtrl.dispose();
       noteCtrl.dispose();
+      if (mounted) setState(() => _openingEditor = false);
     }
   }
+}
+
+class _MemoEditorPayload {
+  _MemoEditorPayload({
+    required this.title,
+    required this.note,
+    required this.itemType,
+    required this.category,
+    required this.colorKey,
+    required this.dueAt,
+  });
+
+  final String title;
+  final String note;
+  final String itemType;
+  final String category;
+  final String colorKey;
+  final DateTime? dueAt;
 }
 
 class _CategoryChip extends StatelessWidget {
@@ -491,6 +610,7 @@ class _MemoBoardCard extends StatelessWidget {
     required this.onTap,
     required this.onToggleDone,
     required this.onDelete,
+    required this.onDragHandle,
   });
 
   final CoupleTodo todo;
@@ -498,9 +618,10 @@ class _MemoBoardCard extends StatelessWidget {
   final String name;
   final Color color;
   final bool isMono;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final ValueChanged<bool>? onToggleDone;
   final Future<void> Function()? onDelete;
+  final Widget onDragHandle;
 
   @override
   Widget build(BuildContext context) {
@@ -555,6 +676,8 @@ class _MemoBoardCard extends StatelessWidget {
                         color: Theme.of(context).colorScheme.outline,
                       ),
                     ),
+                  const SizedBox(width: 6),
+                  onDragHandle,
                 ],
               ),
               const SizedBox(height: 8),
@@ -605,7 +728,7 @@ class _MemoBoardCard extends StatelessWidget {
                 ),
               if (todo.note.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                Expanded(
+                Flexible(
                   child: Text(
                     todo.note,
                     maxLines: 5,
@@ -613,8 +736,7 @@ class _MemoBoardCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
-              ] else
-                const Spacer(),
+              ],
               const SizedBox(height: 8),
               Row(
                 children: [

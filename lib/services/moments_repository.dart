@@ -9,10 +9,7 @@ import 'package:intl/intl.dart';
 
 import '../core/constants.dart';
 
-class MomentsQuotaException implements Exception {
-  @override
-  String toString() => 'moments_monthly_quota';
-}
+enum UploadTier { free, premium }
 
 class CoupleMoment {
   CoupleMoment({
@@ -72,12 +69,16 @@ class MomentComment {
   MomentComment({
     required this.id,
     required this.authorUid,
+    required this.authorName,
+    required this.authorPhotoUrl,
     required this.text,
     required this.createdAt,
   });
 
   final String id;
   final String authorUid;
+  final String authorName;
+  final String authorPhotoUrl;
   final String text;
   final DateTime createdAt;
 
@@ -87,6 +88,8 @@ class MomentComment {
       return MomentComment(
         id: d.id,
         authorUid: '',
+        authorName: '',
+        authorPhotoUrl: '',
         text: '',
         createdAt: DateTime.now(),
       );
@@ -95,6 +98,8 @@ class MomentComment {
     return MomentComment(
       id: d.id,
       authorUid: m['authorUid'] as String? ?? '',
+      authorName: m['authorName'] as String? ?? '',
+      authorPhotoUrl: m['authorPhotoUrl'] as String? ?? '',
       text: m['text'] as String? ?? '',
       createdAt: ts?.toDate() ?? DateTime.now(),
     );
@@ -123,14 +128,23 @@ class MomentsRepository {
   ).format(DateTime(local.year, local.month, local.day));
 
   /// 갤러리 원본이 커도 업로드 용량을 줄이기 위해 재압축합니다.
-  static Future<Uint8List> compressForUpload(Uint8List raw) async {
+  ///
+  /// - 프리미엄: 화질 저하를 최소화하며 2K 이하/quality 84
+  /// - 무료: 비용 절감을 위해 1K 이하/quality 66
+  static Future<Uint8List> compressForUpload(
+    Uint8List raw, {
+    UploadTier tier = UploadTier.free,
+  }) async {
     if (raw.isEmpty) return raw;
     try {
+      final isPremium = tier == UploadTier.premium;
+      final targetMax = isPremium ? 2048 : 1024;
+      final targetQuality = isPremium ? 84 : 66;
       final out = await FlutterImageCompress.compressWithList(
         raw,
-        minWidth: 2048,
-        minHeight: 2048,
-        quality: 82,
+        minWidth: targetMax,
+        minHeight: targetMax,
+        quality: targetQuality,
       );
       if (out.isNotEmpty) return Uint8List.fromList(out);
     } catch (e) {
@@ -165,25 +179,6 @@ class MomentsRepository {
     }
   }
 
-  Future<void> _assertMonthlyQuota(
-    String coupleId,
-    String authorUid,
-    bool isPremium,
-  ) async {
-    if (isPremium) return;
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, 1);
-    final q = await momentsCol(coupleId)
-        .where('authorUid', isEqualTo: authorUid)
-        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .count()
-        .get();
-    final c = q.count;
-    if (c != null && c >= kFreeMonthlyPhotoLimit) {
-      throw MomentsQuotaException();
-    }
-  }
-
   Future<void> bumpLoveTemperature(String coupleId, int delta) async {
     if (delta <= 0) return;
     await _db.runTransaction((txn) async {
@@ -204,12 +199,10 @@ class MomentsRepository {
     required String coupleId,
     required String caption,
     required List<Uint8List>? imageBytesList,
-    required bool isPremium,
+    required UploadTier uploadTier,
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw StateError('not_authenticated');
-
-    await _assertMonthlyQuota(coupleId, user.uid, isPremium);
 
     final docRef = momentsCol(coupleId).doc();
     final momentId = docRef.id;
@@ -222,7 +215,7 @@ class MomentsRepository {
       for (final raw in imageBytesList) {
         if (raw.isEmpty) continue;
         if (urls.length >= kMaxPhotosPerMoment) break;
-        final compressed = await compressForUpload(raw);
+        final compressed = await compressForUpload(raw, tier: uploadTier);
         final ref = _storage.ref(
           'couples/$coupleId/moments/$momentId/img_$i.jpg',
         );
@@ -243,6 +236,7 @@ class MomentsRepository {
           'createdAt': FieldValue.serverTimestamp(),
           'dayKey': day,
           'likeCount': 0,
+          'photoCount': urls.length,
           if (urls.isNotEmpty) 'imageUrls': urls,
         })
         .timeout(const Duration(seconds: 12));
@@ -326,12 +320,39 @@ class MomentsRepository {
     if (user == null) return;
     final t = text.trim();
     if (t.isEmpty) return;
+    final userSnap = await _db.collection('users').doc(user.uid).get();
+    final userData = userSnap.data();
+    final authorName = ((userData?['displayName'] as String?) ?? '').trim();
+    final authorPhotoUrl = ((userData?['photoUrl'] as String?) ?? '').trim();
     await momentsCol(coupleId).doc(momentId).collection('comments').add({
       'authorUid': user.uid,
+      'authorName': authorName.isNotEmpty
+          ? authorName
+          : (user.displayName ?? '').trim(),
+      'authorPhotoUrl': authorPhotoUrl.isNotEmpty
+          ? authorPhotoUrl
+          : (user.photoURL ?? ''),
       'text': t.length > 2000 ? t.substring(0, 2000) : t,
       'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
     await bumpLoveTemperature(coupleId, kLoveTempDeltaComment);
+  }
+
+  Future<void> updateComment({
+    required String coupleId,
+    required String momentId,
+    required String commentId,
+    required String text,
+  }) async {
+    final t = text.trim();
+    if (t.isEmpty) return;
+    await momentsCol(
+      coupleId,
+    ).doc(momentId).collection('comments').doc(commentId).update({
+      'text': t.length > 2000 ? t.substring(0, 2000) : t,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> deleteComment(

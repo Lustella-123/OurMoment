@@ -9,7 +9,7 @@
 아래를 터미널에서 실행한 **전체 출력**을 복사합니다.
 
 ```bash
-cd "/Users/parkjaeseong/Documents/Our moment"
+cd "$(git rev-parse --show-toplevel)"
 flutter doctor -v
 ```
 
@@ -41,7 +41,7 @@ Android applicationId: com.jscompany.ourmoment
 **3-1. Flutter CLI로 빌드해 보기**
 
 ```bash
-cd "/Users/parkjaeseong/Documents/Our moment"
+cd "$(git rev-parse --show-toplevel)"
 flutter clean
 flutter pub get
 flutter run -v 2>&1 | tail -n 120
@@ -61,7 +61,7 @@ flutter run -v 2>&1 | tail -n 120
 
 ```bash
 export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
-cd "/Users/parkjaeseong/Documents/Our moment/ios"
+cd "$(git rev-parse --show-toplevel)/ios"
 pod install
 ```
 
@@ -164,7 +164,7 @@ Firebase Auth → Apple 제공업체: 켜짐 / 안 켜짐
 ## 8. 로컬에서 로그만 빠르게 볼 때
 
 ```bash
-cd "/Users/parkjaeseong/Documents/Our moment"
+cd "$(git rev-parse --show-toplevel)"
 flutter run 2>&1 | tee flutter_run_log.txt
 ```
 

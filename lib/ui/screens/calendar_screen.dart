@@ -8,9 +8,7 @@ import 'package:ourmoment/l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 
-import '../../services/calendar_events_repository.dart';
-import '../../services/moments_repository.dart'
-    show CoupleMoment, MomentsRepository;
+import '../../services/moments_repository.dart';
 import '../../services/user_repository.dart';
 import '../../state/app_settings.dart';
 
@@ -21,23 +19,24 @@ class CalendarScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final user = FirebaseAuth.instance.currentUser;
-
     return Scaffold(
       appBar: AppBar(title: Text(l10n.calendarTitle)),
       body: user == null
           ? const SizedBox.shrink()
           : StreamBuilder(
               stream: context.read<UserRepository>().watchUser(user.uid),
-              builder: (context, userSnap) {
-                final coupleId = userSnap.data?.data()?['coupleId'] as String?;
+              builder: (context, snap) {
+                if (!snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final coupleId = snap.data?.data()?['coupleId'] as String?;
                 if (coupleId == null || coupleId.isEmpty) {
                   return Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(32),
+                      padding: const EdgeInsets.all(24),
                       child: Text(
                         l10n.calendarNoCouple,
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyLarge,
                       ),
                     ),
                   );
@@ -51,7 +50,6 @@ class CalendarScreen extends StatelessWidget {
 
 class _CalendarBody extends StatefulWidget {
   const _CalendarBody({required this.coupleId});
-
   final String coupleId;
 
   @override
@@ -60,15 +58,13 @@ class _CalendarBody extends StatefulWidget {
 
 class _CalendarBodyState extends State<_CalendarBody> {
   DateTime _focused = DateTime.now();
-  DateTime? _selected;
-  Set<DateTime> _markedMoments = {};
+  DateTime? _selected = DateTime.now();
   Set<String> _markedMomentKeys = {};
-  Map<DateTime, List<CoupleCalendarEvent>> _monthEvents = {};
   Map<String, List<String>> _monthPhotoUrlsByDay = {};
-  List<CoupleMoment> _forDay = [];
-  List<CoupleCalendarEvent> _eventsForDay = [];
+  List<CoupleMoment> _forDay = const [];
   bool _loadingMonth = true;
-  String? _loadErrorMessage;
+  String? _error;
+  int _monthSeq = 0;
 
   String _dayKey(DateTime day) =>
       '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
@@ -76,7 +72,6 @@ class _CalendarBodyState extends State<_CalendarBody> {
   @override
   void initState() {
     super.initState();
-    _selected = DateTime.now();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadMonth());
       unawaited(_loadDay(_selected!));
@@ -84,437 +79,124 @@ class _CalendarBodyState extends State<_CalendarBody> {
   }
 
   Future<void> _loadMonth() async {
+    final seq = ++_monthSeq;
     setState(() => _loadingMonth = true);
-    final momentRepo = context.read<MomentsRepository>();
-    final eventRepo = context.read<CalendarEventsRepository>();
+    final repo = context.read<MomentsRepository>();
     try {
       final res = await Future.wait<dynamic>([
-        momentRepo.loadDaysWithMomentsInMonth(widget.coupleId, _focused),
-        eventRepo.loadEventsInMonth(widget.coupleId, _focused),
-        momentRepo.loadPhotoUrlsByDayInMonth(widget.coupleId, _focused),
+        repo.loadDaysWithMomentsInMonth(widget.coupleId, _focused),
+        repo.loadPhotoUrlsByDayInMonth(widget.coupleId, _focused),
       ]);
-      final set = res[0] as Set<DateTime>;
-      final events = res[1] as List<CoupleCalendarEvent>;
-      final photoUrlsByDay = res[2] as Map<String, List<String>>;
-      final grouped = <DateTime, List<CoupleCalendarEvent>>{};
-      for (final e in events) {
-        final day = DateTime.parse('${e.dayKey}T00:00:00');
-        grouped.putIfAbsent(day, () => <CoupleCalendarEvent>[]).add(e);
-      }
-      if (!mounted) return;
+      if (!mounted || seq != _monthSeq) return;
+      final days = res[0] as Set<DateTime>;
+      final photosByDay = res[1] as Map<String, List<String>>;
       setState(() {
-        _markedMoments = set;
-        _markedMomentKeys = set.map(_dayKey).toSet();
-        _monthEvents = grouped;
-        _monthPhotoUrlsByDay = photoUrlsByDay;
-        _loadErrorMessage = null;
+        _markedMomentKeys = days.map(_dayKey).toSet();
+        _monthPhotoUrlsByDay = photosByDay;
         _loadingMonth = false;
+        _error = null;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || seq != _monthSeq) return;
       setState(() {
         _loadingMonth = false;
-        _loadErrorMessage = '달력을 불러오지 못했어요. 네트워크를 확인해 주세요.';
+        _error = '달력 데이터를 불러오지 못했어요.';
       });
     }
   }
 
   Future<void> _loadDay(DateTime day) async {
-    final momentRepo = context.read<MomentsRepository>();
-    final eventRepo = context.read<CalendarEventsRepository>();
+    final repo = context.read<MomentsRepository>();
     try {
-      final res = await Future.wait<dynamic>([
-        momentRepo.loadMomentsForDay(widget.coupleId, day),
-        eventRepo.loadEventsForDay(widget.coupleId, day),
-      ]);
-      final list = res[0] as List<CoupleMoment>;
-      final events = res[1] as List<CoupleCalendarEvent>;
+      final moments = await repo.loadMomentsForDay(widget.coupleId, day);
       if (!mounted) return;
       setState(() {
-        _forDay = list;
-        _eventsForDay = events;
-        _loadErrorMessage = null;
+        _forDay = moments;
+        _error = null;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _loadErrorMessage = '일정을 불러오지 못했어요. 다시 시도해 주세요.';
-      });
+      setState(() => _error = '해당 날짜 기록을 불러오지 못했어요.');
     }
   }
 
-  Color _myColor(Color accent) => accent.withValues(alpha: 0.6);
-  Color _partnerColor(Color accent) {
-    final hsl = HSLColor.fromColor(accent);
-    return hsl
-        .withHue((hsl.hue + 160) % 360)
-        .withSaturation((hsl.saturation * 0.7).clamp(0.0, 1.0))
-        .withLightness((hsl.lightness + 0.08).clamp(0.0, 1.0))
-        .toColor()
-        .withValues(alpha: 0.56);
-  }
-
-  bool _isMine(String uid) =>
-      uid == (FirebaseAuth.instance.currentUser?.uid ?? '');
-
-  static const _eventColors = <String, Color>{
-    'rose': Color(0x66FF8FA3),
-    'orange': Color(0x66FFB86B),
-    'yellow': Color(0x66FFE082),
-    'green': Color(0x6691E7B3),
-    'blue': Color(0x668EC5FF),
-    'purple': Color(0x66C8A4FF),
-    'mint': Color(0x668DE9D1),
-  };
-
-  Color _eventColor(String key) => _eventColors[key] ?? _eventColors['rose']!;
-
-  List<CoupleCalendarEvent> _eventsOnDay(DateTime day) {
-    final d = DateTime(day.year, day.month, day.day);
-    return _monthEvents[d] ?? const <CoupleCalendarEvent>[];
-  }
-
-  List<String> _photoUrlsOnDay(DateTime day) =>
-      _monthPhotoUrlsByDay[_dayKey(day)] ?? const <String>[];
-
-  List<CoupleCalendarEvent> _sortedDayEvents() {
-    final list = [..._eventsForDay];
-    list.sort((a, b) {
-      final ta = a.timeText;
-      final tb = b.timeText;
-      if (ta.isEmpty && tb.isNotEmpty) return 1;
-      if (ta.isNotEmpty && tb.isEmpty) return -1;
-      final byTime = ta.compareTo(tb);
-      if (byTime != 0) return byTime;
-      return a.createdAt.compareTo(b.createdAt);
-    });
-    return list;
-  }
-
-  int _weeksInMonth(DateTime month) {
-    final first = DateTime(month.year, month.month, 1);
-    final last = DateTime(month.year, month.month + 1, 0);
-    final leading = first.weekday % 7;
-    return ((leading + last.day) / 7).ceil();
-  }
-
-  Future<void> _openDayItemsSheet({
-    required DateTime day,
-    required Locale locale,
-    required Color mineColor,
-    required Color partnerColor,
-  }) async {
-    if (!mounted) return;
+  Future<void> _openPolaroids(DateTime day, Locale locale) async {
     final l10n = AppLocalizations.of(context)!;
-    final sortedEvents = _sortedDayEvents();
+    var page = 0;
     await showModalBottomSheet<void>(
       context: context,
-      showDragHandle: true,
       useSafeArea: true,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-            child: (sortedEvents.isEmpty && _forDay.isEmpty)
-                ? Center(
-                    child: Text(
-                      l10n.calendarEmptyBody,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  )
-                : ListView(
-                    children: [
-                      for (final e in sortedEvents)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _ScheduleTemplateCard(
-                            chipColor: _eventColor(e.colorKey),
-                            timeText: e.timeText,
-                            title: e.title,
-                            note: e.note,
-                            mine: _isMine(e.createdBy),
-                            mineColor: mineColor,
-                            partnerColor: partnerColor,
-                            onTap: _isMine(e.createdBy)
-                                ? () => _openEventSheet(day: day, editing: e)
-                                : null,
-                          ),
-                        ),
-                      for (final m in _forDay)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _MomentTemplateCard(moment: m, locale: locale),
-                        ),
-                    ],
-                  ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _openDayPhotoSheet({
-    required DateTime day,
-    required List<String> photoUrls,
-  }) async {
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
       showDragHandle: true,
-      useSafeArea: true,
       builder: (context) {
-        return SizedBox(
-          height: MediaQuery.sizeOf(context).height * 0.72,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  DateFormat('yyyy.MM.dd').format(day),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-              Expanded(
-                child: PageView.builder(
-                  itemCount: photoUrls.length,
-                  itemBuilder: (context, i) {
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: CachedNetworkImage(
-                          imageUrl: photoUrls[i],
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.surfaceContainerHighest,
-                            child: const Center(
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.surfaceContainerHighest,
-                            alignment: Alignment.center,
-                            child: Icon(
-                              Icons.broken_image_outlined,
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _openEventSheet({
-    required DateTime day,
-    CoupleCalendarEvent? editing,
-  }) async {
-    final l10n = AppLocalizations.of(context)!;
-    final eventRepo = context.read<CalendarEventsRepository>();
-    final titleCtrl = TextEditingController(text: editing?.title ?? '');
-    final noteCtrl = TextEditingController(text: editing?.note ?? '');
-    void disposeCtrls() {
-      titleCtrl.dispose();
-      noteCtrl.dispose();
-    }
-
-    var pickedDay = DateTime(day.year, day.month, day.day);
-    var colorKey = editing?.colorKey ?? 'rose';
-    TimeOfDay? pickedTime;
-    if (editing != null && editing.timeText.contains(':')) {
-      final parts = editing.timeText.split(':');
-      if (parts.length == 2) {
-        final h = int.tryParse(parts[0]);
-        final m = int.tryParse(parts[1]);
-        if (h != null && m != null && h >= 0 && h < 24 && m >= 0 && m < 60) {
-          pickedTime = TimeOfDay(hour: h, minute: m);
+        if (_forDay.isEmpty) {
+          return SizedBox(
+            height: 220,
+            child: Center(child: Text(l10n.calendarEmptyBody)),
+          );
         }
-      }
-    }
-    final saved = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                4,
-                16,
-                16 + MediaQuery.of(context).viewInsets.bottom,
-              ),
+          builder: (context, setModal) {
+            return SizedBox(
+              height: MediaQuery.sizeOf(context).height * 0.78,
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    editing == null
-                        ? l10n.calendarAddSchedule
-                        : l10n.calendarEditSchedule,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(14, 2, 14, 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      DateFormat('yyyy.MM.dd').format(day),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.2,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: titleCtrl,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(hintText: '제목'),
+                  Expanded(
+                    child: PageView.builder(
+                      itemCount: _forDay.length,
+                      onPageChanged: (index) => setModal(() => page = index),
+                      itemBuilder: (context, index) => Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+                        child: _MomentTemplateCard(
+                          moment: _forDay[index],
+                          locale: locale,
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: noteCtrl,
-                    minLines: 2,
-                    maxLines: 4,
-                    decoration: const InputDecoration(hintText: '내용'),
-                  ),
-                  const SizedBox(height: 10),
-                  LayoutBuilder(
-                    builder: (context, c) {
-                      const item = 28.0;
-                      const count = 7.0;
-                      final spacing =
-                          ((c.maxWidth - (item * count)) / (count - 1)).clamp(
-                            4.0,
-                            18.0,
-                          );
-                      return Row(
+                  if (_forDay.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: _eventColors.entries.map((e) {
-                          final selected = colorKey == e.key;
-                          return Padding(
-                            padding: EdgeInsets.only(
-                              right: e.key == _eventColors.keys.last
-                                  ? 0
-                                  : spacing,
-                            ),
-                            child: InkWell(
+                        children: List.generate(
+                          _forDay.length,
+                          (index) => AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            margin: const EdgeInsets.symmetric(horizontal: 3),
+                            width: page == index ? 12 : 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: page == index
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).colorScheme.outline
+                                        .withValues(alpha: 0.4),
                               borderRadius: BorderRadius.circular(99),
-                              onTap: () =>
-                                  setModalState(() => colorKey = e.key),
-                              child: Container(
-                                width: item,
-                                height: item,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: e.value,
-                                  border: Border.all(
-                                    color: selected
-                                        ? Theme.of(
-                                            context,
-                                          ).colorScheme.onSurface
-                                        : Colors.transparent,
-                                    width: 1.6,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.tonalIcon(
-                          onPressed: () async {
-                            final d = await showDatePicker(
-                              context: context,
-                              initialDate: pickedDay,
-                              firstDate: DateTime(2020, 1, 1),
-                              lastDate: DateTime(2035, 12, 31),
-                            );
-                            if (d != null) {
-                              setModalState(() {
-                                pickedDay = DateTime(d.year, d.month, d.day);
-                              });
-                            }
-                          },
-                          icon: const Icon(Icons.calendar_month_outlined),
-                          label: Text(
-                            DateFormat('M.d (E)', 'ko').format(pickedDay),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: FilledButton.tonalIcon(
-                          onPressed: () async {
-                            final t = await showTimePicker(
-                              context: context,
-                              initialTime:
-                                  pickedTime ??
-                                  const TimeOfDay(hour: 9, minute: 0),
-                            );
-                            if (t != null) {
-                              setModalState(() => pickedTime = t);
-                            }
-                          },
-                          icon: const Icon(Icons.schedule),
-                          label: Text(
-                            pickedTime == null
-                                ? l10n.calendarPickTime
-                                : MaterialLocalizations.of(
-                                    context,
-                                  ).formatTimeOfDay(
-                                    pickedTime!,
-                                    alwaysUse24HourFormat: true,
-                                  ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      if (editing != null && _isMine(editing.createdBy))
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, null),
-                          child: Text(
-                            l10n.commonDelete,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
                             ),
                           ),
                         ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: Text(l10n.calendarCancel),
                       ),
-                      const SizedBox(width: 4),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: Text(l10n.calendarSave),
-                      ),
-                    ],
-                  ),
+                    ),
                 ],
               ),
             );
@@ -522,115 +204,26 @@ class _CalendarBodyState extends State<_CalendarBody> {
         );
       },
     );
-    if (saved == null && editing != null && _isMine(editing.createdBy)) {
-      if (!mounted) return;
-      final shouldDelete = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(l10n.commonDelete),
-          content: Text(l10n.calendarDeleteConfirm),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(l10n.commonCancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(l10n.commonDelete),
-            ),
-          ],
-        ),
-      );
-      if (shouldDelete != true) {
-        disposeCtrls();
-        return;
-      }
-      try {
-        await eventRepo.deleteEvent(
-          coupleId: widget.coupleId,
-          eventId: editing.id,
-        );
-        await _loadMonth();
-        await _loadDay(_selected ?? pickedDay);
-      } catch (_) {
-        if (!mounted) {
-          disposeCtrls();
-          return;
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.diaryFirestorePermissionDenied)),
-        );
-      }
-      disposeCtrls();
-      return;
-    }
-    if (saved != true) {
-      disposeCtrls();
-      return;
-    }
-    final timeText = pickedTime == null
-        ? ''
-        : '${pickedTime!.hour.toString().padLeft(2, '0')}:${pickedTime!.minute.toString().padLeft(2, '0')}';
-    try {
-      if (editing == null) {
-        await eventRepo.addEvent(
-          coupleId: widget.coupleId,
-          day: pickedDay,
-          title: titleCtrl.text,
-          note: noteCtrl.text,
-          timeText: timeText,
-          colorKey: colorKey,
-          shapeKey: 'dot',
-        );
-      } else {
-        await eventRepo.updateEvent(
-          coupleId: widget.coupleId,
-          eventId: editing.id,
-          title: titleCtrl.text,
-          note: noteCtrl.text,
-          timeText: timeText,
-          colorKey: colorKey,
-          shapeKey: 'dot',
-        );
-      }
-      await _loadMonth();
-      await _loadDay(_selected ?? pickedDay);
-    } catch (_) {
-      if (!mounted) {
-        disposeCtrls();
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.diaryFirestorePermissionDenied)),
-      );
-    }
-    disposeCtrls();
   }
 
-  Widget _buildCalendarCell(
+  Widget _buildDayCell(
     BuildContext context,
     DateTime day, {
     required bool isOutside,
     required bool isSelected,
     required bool isToday,
-    required bool compact,
     required Color accent,
   }) {
-    final events = _eventsOnDay(day);
-    final photoUrls = _photoUrlsOnDay(day);
-    final hasPhoto = photoUrls.isNotEmpty;
-    final hasSchedule = events.isNotEmpty;
+    final photos = _monthPhotoUrlsByDay[_dayKey(day)] ?? const <String>[];
+    final hasPhoto = photos.isNotEmpty;
     final dayColor = isOutside
         ? Theme.of(context).colorScheme.outline
         : Theme.of(context).colorScheme.onSurface;
-    final bgColor = isToday
-        ? accent.withValues(alpha: 0.1)
-        : Colors.transparent;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 1.5, vertical: 2),
       padding: const EdgeInsets.fromLTRB(2, 2, 2, 3),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: isToday ? accent.withValues(alpha: 0.1) : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Stack(
@@ -640,7 +233,7 @@ class _CalendarBodyState extends State<_CalendarBody> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: CachedNetworkImage(
-                  imageUrl: photoUrls.first,
+                  imageUrl: photos.first,
                   fit: BoxFit.cover,
                   placeholder: (context, url) => Container(
                     color: Theme.of(
@@ -656,11 +249,10 @@ class _CalendarBodyState extends State<_CalendarBody> {
               ),
             ),
           if (hasPhoto)
-            Positioned.fill(
+            const Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [Color(0x33000000), Color(0x66000000)],
@@ -701,22 +293,16 @@ class _CalendarBodyState extends State<_CalendarBody> {
               ),
             ),
           ),
-          if (hasSchedule)
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                width: compact ? 6 : 7,
-                height: compact ? 6 : 7,
-                margin: const EdgeInsets.only(bottom: 2),
-                decoration: BoxDecoration(
-                  color: hasPhoto ? Colors.white : accent,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
         ],
       ),
     );
+  }
+
+  int _weeksInMonth(DateTime month) {
+    final first = DateTime(month.year, month.month, 1);
+    final last = DateTime(month.year, month.month + 1, 0);
+    final leading = first.weekday % 7;
+    return ((leading + last.day) / 7).ceil();
   }
 
   Future<void> _pickMonthYear() async {
@@ -737,6 +323,7 @@ class _CalendarBodyState extends State<_CalendarBody> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<int>(
+                          // ignore: deprecated_member_use
                           value: selectedYear,
                           decoration: const InputDecoration(
                             isDense: true,
@@ -754,6 +341,7 @@ class _CalendarBodyState extends State<_CalendarBody> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: DropdownButtonFormField<int>(
+                          // ignore: deprecated_member_use
                           value: selectedMonth,
                           decoration: const InputDecoration(
                             isDense: true,
@@ -790,16 +378,12 @@ class _CalendarBodyState extends State<_CalendarBody> {
     );
     if (picked == null || !mounted) return;
     final nextFocused = DateTime(picked.year, picked.month, 1);
-    final currentSelected = _selected ?? picked;
-    final clampedDay = currentSelected.day.clamp(
+    final selected = _selected ?? picked;
+    final day = selected.day.clamp(
       1,
       DateUtils.getDaysInMonth(nextFocused.year, nextFocused.month),
     );
-    final nextSelected = DateTime(
-      nextFocused.year,
-      nextFocused.month,
-      clampedDay,
-    );
+    final nextSelected = DateTime(nextFocused.year, nextFocused.month, day);
     setState(() {
       _focused = nextFocused;
       _selected = nextSelected;
@@ -810,327 +394,145 @@ class _CalendarBodyState extends State<_CalendarBody> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<AppSettings>();
-    final accent = settings.accentColor;
-    final mineColor = _myColor(accent);
-    final partnerColor = _partnerColor(accent);
-    final locale = Locale(settings.languageCode);
-    final screenW = MediaQuery.sizeOf(context).width;
-    final compactCell = screenW < 360;
+    final accent = context.select<AppSettings, Color>((s) => s.accentColor);
+    final locale = Locale(
+      context.select<AppSettings, String>((s) => s.languageCode),
+    );
+    final compactCell = MediaQuery.sizeOf(context).width < 360;
     final weekCount = _weeksInMonth(_focused);
     final rowHeight = weekCount >= 6
         ? (compactCell ? 74.0 : 84.0)
         : (compactCell ? 88.0 : 102.0);
 
-    return Stack(
+    return Column(
       children: [
-        Column(
-          children: [
-            if (_loadingMonth && _markedMoments.isEmpty && _monthEvents.isEmpty)
-              const LinearProgressIndicator(minHeight: 2),
-            Expanded(
+        if (_loadingMonth && _markedMomentKeys.isEmpty)
+          const LinearProgressIndicator(minHeight: 2),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
-                child: Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+                child: TableCalendar<dynamic>(
+                  firstDay: DateTime(2020, 1, 1),
+                  lastDay: DateTime(2035, 12, 31),
+                  focusedDay: _focused,
+                  calendarFormat: CalendarFormat.month,
+                  availableCalendarFormats: const {
+                    CalendarFormat.month: 'Month',
+                  },
+                  pageAnimationDuration: const Duration(milliseconds: 320),
+                  pageAnimationCurve: Curves.easeOutCubic,
+                  rowHeight: rowHeight,
+                  locale: locale.languageCode,
+                  selectedDayPredicate: (d) =>
+                      _selected != null && isSameDay(_selected, d),
+                  headerStyle: HeaderStyle(
+                    titleCentered: false,
+                    formatButtonVisible: false,
+                    titleTextStyle: Theme.of(context).textTheme.headlineSmall!
+                        .copyWith(fontWeight: FontWeight.w900),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-                    child: TableCalendar<dynamic>(
-                      firstDay: DateTime(2020, 1, 1),
-                      lastDay: DateTime(2035, 12, 31),
-                      focusedDay: _focused,
-                      calendarFormat: CalendarFormat.month,
-                      availableCalendarFormats: const {
-                        CalendarFormat.month: 'Month',
-                      },
-                      pageAnimationDuration: const Duration(milliseconds: 320),
-                      pageAnimationCurve: Curves.easeOutCubic,
-                      rowHeight: rowHeight,
-                      locale: locale.languageCode,
-                      selectedDayPredicate: (d) =>
-                          _selected != null && isSameDay(_selected, d),
-                      headerStyle: HeaderStyle(
-                        titleCentered: false,
-                        formatButtonVisible: false,
-                        titleTextStyle: Theme.of(context)
-                            .textTheme
-                            .headlineSmall!
-                            .copyWith(fontWeight: FontWeight.w900),
-                      ),
-                      onHeaderTapped: (focusedDay) async {
-                        await _pickMonthYear();
-                      },
-                      calendarStyle: CalendarStyle(
-                        outsideDaysVisible: true,
-                        defaultTextStyle: Theme.of(
-                          context,
-                        ).textTheme.bodyMedium!,
-                        todayDecoration: const BoxDecoration(
-                          color: Colors.transparent,
-                        ),
-                        selectedDecoration: const BoxDecoration(
-                          color: Colors.transparent,
-                        ),
-                      ),
-                      eventLoader: (day) {
-                        final d = DateTime(day.year, day.month, day.day);
-                        final events =
-                            _monthEvents[d] ?? const <CoupleCalendarEvent>[];
-                        final hasMoment = _markedMomentKeys.contains(
-                          _dayKey(d),
-                        );
-                        if (!hasMoment && events.isEmpty) return const [];
-                        return [...events, if (hasMoment) 'moment'];
-                      },
-                      calendarBuilders: CalendarBuilders<dynamic>(
-                        defaultBuilder: (context, day, focusedDay) =>
-                            _buildCalendarCell(
-                              context,
-                              day,
-                              isOutside: false,
-                              isSelected:
-                                  _selected != null &&
-                                  isSameDay(_selected, day),
-                              isToday: isSameDay(DateTime.now(), day),
-                              compact: compactCell,
-                              accent: accent,
-                            ),
-                        outsideBuilder: (context, day, focusedDay) =>
-                            _buildCalendarCell(
-                              context,
-                              day,
-                              isOutside: true,
-                              isSelected: false,
-                              isToday: false,
-                              compact: compactCell,
-                              accent: accent,
-                            ),
-                        selectedBuilder: (context, day, focusedDay) =>
-                            _buildCalendarCell(
-                              context,
-                              day,
-                              isOutside: false,
-                              isSelected: true,
-                              isToday: false,
-                              compact: compactCell,
-                              accent: accent,
-                            ),
-                        todayBuilder: (context, day, focusedDay) =>
-                            _buildCalendarCell(
-                              context,
-                              day,
-                              isOutside: false,
-                              isSelected:
-                                  _selected != null &&
-                                  isSameDay(_selected, day),
-                              isToday: true,
-                              compact: compactCell,
-                              accent: accent,
-                            ),
-                        markerBuilder: (context, day, events) =>
-                            const SizedBox.shrink(),
-                      ),
-                      onDaySelected: (selected, focused) async {
-                        setState(() {
-                          _selected = selected;
-                          _focused = focused;
-                        });
-                        await _loadDay(selected);
-                        if (!mounted) return;
-                        final dayPhotos = <String>[
-                          for (final m in _forDay) ...m.imageUrls,
-                        ];
-                        final fallbackPhotos = _photoUrlsOnDay(selected);
-                        final photosToShow = dayPhotos.isNotEmpty
-                            ? dayPhotos
-                            : fallbackPhotos;
-                        if (photosToShow.isNotEmpty) {
-                          await _openDayPhotoSheet(
-                            day: selected,
-                            photoUrls: photosToShow,
-                          );
-                        } else {
-                          await _openDayItemsSheet(
-                            day: selected,
-                            locale: locale,
-                            mineColor: mineColor,
-                            partnerColor: partnerColor,
-                          );
-                        }
-                      },
-                      onPageChanged: (focused) async {
-                        _focused = focused;
-                        await _loadMonth();
-                      },
+                  onHeaderTapped: (_) => _pickMonthYear(),
+                  calendarStyle: CalendarStyle(
+                    outsideDaysVisible: true,
+                    defaultTextStyle: Theme.of(context).textTheme.bodyMedium!,
+                    todayDecoration: const BoxDecoration(
+                      color: Colors.transparent,
+                    ),
+                    selectedDecoration: const BoxDecoration(
+                      color: Colors.transparent,
                     ),
                   ),
+                  eventLoader: (day) => _markedMomentKeys.contains(_dayKey(day))
+                      ? const ['moment']
+                      : const [],
+                  calendarBuilders: CalendarBuilders<dynamic>(
+                    defaultBuilder: (context, day, _) => _buildDayCell(
+                      context,
+                      day,
+                      isOutside: false,
+                      isSelected:
+                          _selected != null && isSameDay(_selected, day),
+                      isToday: isSameDay(DateTime.now(), day),
+                      accent: accent,
+                    ),
+                    outsideBuilder: (context, day, _) => _buildDayCell(
+                      context,
+                      day,
+                      isOutside: true,
+                      isSelected: false,
+                      isToday: false,
+                      accent: accent,
+                    ),
+                    selectedBuilder: (context, day, _) => _buildDayCell(
+                      context,
+                      day,
+                      isOutside: false,
+                      isSelected: true,
+                      isToday: false,
+                      accent: accent,
+                    ),
+                    todayBuilder: (context, day, _) => _buildDayCell(
+                      context,
+                      day,
+                      isOutside: false,
+                      isSelected:
+                          _selected != null && isSameDay(_selected, day),
+                      isToday: true,
+                      accent: accent,
+                    ),
+                    markerBuilder: (context, day, events) =>
+                        const SizedBox.shrink(),
+                  ),
+                  onDaySelected: (selected, focused) async {
+                    setState(() {
+                      _selected = selected;
+                      _focused = focused;
+                    });
+                    await _loadDay(selected);
+                    if (!mounted) return;
+                    await _openPolaroids(selected, locale);
+                  },
+                  onPageChanged: (focused) async {
+                    setState(() => _focused = focused);
+                    await _loadMonth();
+                  },
                 ),
               ),
             ),
-            if (_loadErrorMessage != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _loadErrorMessage!,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        await _loadMonth();
-                        await _loadDay(_selected ?? DateTime.now());
-                      },
-                      child: const Text('재시도'),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 6),
-          ],
-        ),
-        Positioned(
-          right: 18,
-          bottom: 18,
-          child: FloatingActionButton(
-            onPressed: () => _openEventSheet(day: _selected ?? DateTime.now()),
-            child: const Icon(Icons.add),
           ),
         ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _error!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    await _loadMonth();
+                    await _loadDay(_selected ?? DateTime.now());
+                  },
+                  child: const Text('재시도'),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 6),
       ],
-    );
-  }
-}
-
-class _ScheduleTemplateCard extends StatelessWidget {
-  const _ScheduleTemplateCard({
-    required this.chipColor,
-    required this.timeText,
-    required this.title,
-    required this.note,
-    required this.mine,
-    required this.mineColor,
-    required this.partnerColor,
-    this.onTap,
-  });
-
-  final Color chipColor;
-  final String timeText;
-  final String title;
-  final String note;
-  final bool mine;
-  final Color mineColor;
-  final Color partnerColor;
-  final VoidCallback? onTap;
-
-  IconData _iconForTitle() {
-    final t = title.toLowerCase();
-    if (t.contains('병원') || t.contains('치과') || t.contains('검진')) {
-      return Icons.local_hospital_outlined;
-    }
-    if (t.contains('여행') || t.contains('비행') || t.contains('trip')) {
-      return Icons.flight_takeoff_rounded;
-    }
-    if (t.contains('데이트') || t.contains('기념일') || t.contains('anniversary')) {
-      return Icons.favorite_border_rounded;
-    }
-    if (t.contains('운동') || t.contains('헬스') || t.contains('러닝')) {
-      return Icons.fitness_center_rounded;
-    }
-    if (t.contains('회의') || t.contains('미팅') || t.contains('meeting')) {
-      return Icons.work_outline_rounded;
-    }
-    return Icons.event_note_rounded;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = mine ? mineColor : partnerColor;
-    final tilt = ((title.hashCode % 7) - 3) / 650.0;
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: onTap,
-      child: Transform.rotate(
-        angle: tilt,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: chipColor.withValues(alpha: 0.65),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: chipColor.withValues(alpha: 0.12),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 6,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.95),
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          _iconForTitle(),
-                          size: 15,
-                          color: chipColor.withValues(alpha: 0.95),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                        if (timeText.isNotEmpty)
-                          Text(
-                            timeText,
-                            style: Theme.of(context).textTheme.labelMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                      ],
-                    ),
-                    if (note.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        note,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -1145,78 +547,166 @@ class _MomentTemplateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasPhoto = moment.imageUrls.isNotEmpty;
     final hasText = moment.caption.trim().isNotEmpty;
-    final title = hasText ? moment.caption : '오늘의 기록';
-    final stateLabel = hasPhoto && hasText
-        ? '사진 + 글'
-        : hasPhoto
-        ? '사진'
-        : '글';
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.secondary.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                stateLabel,
-                style: Theme.of(
-                  context,
-                ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
-              ),
+    final photos = moment.imageUrls;
+    final previewCount = photos.length > 3 ? 3 : photos.length;
+    final overflow = photos.length - previewCount;
+    return Transform.rotate(
+      angle: ((moment.id.hashCode % 11) - 5) / 650,
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFCF7),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE8DFC9)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 14,
+              offset: const Offset(0, 7),
             ),
-            if (hasPhoto) ...[
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: 74,
-                  height: 74,
-                  child: Image.network(
-                    moment.imageUrls.first,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.image),
-                  ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (hasPhoto)
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth;
+                    if (previewCount == 1) {
+                      return SizedBox(
+                        height: width * 0.65,
+                        child: _PolaroidImage(url: photos.first),
+                      );
+                    }
+                    if (previewCount == 2) {
+                      return SizedBox(
+                        height: width * 0.62,
+                        child: Row(
+                          children: [
+                            Expanded(child: _PolaroidImage(url: photos[0])),
+                            const SizedBox(width: 6),
+                            Expanded(child: _PolaroidImage(url: photos[1])),
+                          ],
+                        ),
+                      );
+                    }
+                    return SizedBox(
+                      height: width * 0.72,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: _PolaroidImage(url: photos[0]),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Expanded(child: _PolaroidImage(url: photos[1])),
+                                const SizedBox(height: 6),
+                                Expanded(
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      _PolaroidImage(url: photos[2]),
+                                      if (overflow > 0)
+                                        DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.52,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              '+$overflow',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-              ),
-            ],
-            if (hasText) ...[
-              const SizedBox(height: 8),
-              Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-              ),
-            ],
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Icon(
-                  Icons.schedule,
-                  size: 14,
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-                const SizedBox(width: 4),
+              if (hasText) ...[
+                const SizedBox(height: 10),
                 Text(
-                  DateFormat.Hm(locale.toString()).format(moment.createdAt),
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
+                  moment.caption.trim(),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    height: 1.25,
                   ),
                 ),
               ],
-            ),
-          ],
+              if (!hasText && !hasPhoto)
+                Text('기록 없음', style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height: 8),
+              Text(
+                DateFormat(
+                  'yyyy.MM.dd HH:mm',
+                  locale.toString(),
+                ).format(moment.createdAt),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.outline,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                height: 4,
+                width: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8DFC9),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PolaroidImage extends StatelessWidget {
+  const _PolaroidImage({required this.url});
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.cover,
+        memCacheWidth: 700,
+        memCacheHeight: 700,
+        placeholder: (context, url) => Container(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        ),
+        errorWidget: (context, url, error) => Container(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          alignment: Alignment.center,
+          child: Icon(
+            Icons.broken_image_outlined,
+            color: Theme.of(context).colorScheme.outline,
+          ),
         ),
       ),
     );

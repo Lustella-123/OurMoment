@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:ourmoment/l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
@@ -47,12 +48,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _busy = true);
     try {
       await context.read<UserRepository>().uploadProfilePhoto(
-            uid,
-            Uint8List.fromList(bytes),
-          );
+        uid,
+        Uint8List.fromList(bytes),
+      );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$e')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -65,10 +68,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _busy = true);
     try {
       await context.read<UserRepository>().updateDisplayName(uid, t);
-      if (mounted) FocusScope.of(context).unfocus();
+      if (mounted) {
+        FocusScope.of(context).unfocus();
+        await Navigator.of(context).maybePop();
+      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$e')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -92,7 +100,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         stream: context.read<UserRepository>().watchUser(user.uid),
         builder: (context, snap) {
           if (snap.hasError) {
-            return Center(child: Text('${snap.error}'));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  '프로필 정보를 불러오지 못했어요.\n잠시 후 다시 시도해 주세요.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
+          if (snap.connectionState == ConnectionState.waiting &&
+              !snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
           }
           final data = snap.data?.data();
           final name = data?['displayName'] as String? ?? '';
@@ -119,19 +139,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       Positioned.fill(
                         child: CircleAvatar(
-                          backgroundColor: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
                           backgroundImage:
                               photoUrl != null && photoUrl.isNotEmpty
-                                  ? NetworkImage(photoUrl)
-                                  : null,
+                              ? CachedNetworkImageProvider(photoUrl)
+                              : null,
                           child: photoUrl == null || photoUrl.isEmpty
                               ? Icon(
                                   Icons.person_rounded,
                                   size: 56,
-                                  color:
-                                      Theme.of(context).colorScheme.outline,
+                                  color: Theme.of(context).colorScheme.outline,
                                 )
                               : null,
                         ),
@@ -172,9 +191,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 32),
               Text(
                 l10n.profileInviteCode,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
               if (code != null && code.isNotEmpty)
@@ -182,9 +201,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: ListTile(
                     title: SelectableText(
                       code,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            letterSpacing: 3,
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.headlineSmall?.copyWith(letterSpacing: 3),
                     ),
                     trailing: IconButton(
                       icon: const Icon(Icons.copy_rounded),

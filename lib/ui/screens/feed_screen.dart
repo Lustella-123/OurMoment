@@ -20,10 +20,12 @@ class FeedScreen extends StatefulWidget {
 class _FeedScreenState extends State<FeedScreen> {
   bool _refreshing = false;
   int _reloadTick = 0;
+  int _refreshTicket = 0;
 
   Future<void> _refreshMoments(String coupleId) async {
     if (_refreshing) return;
     final repo = context.read<MomentsRepository>();
+    final ticket = ++_refreshTicket;
     setState(() => _refreshing = true);
     try {
       await repo.refreshMoments(coupleId);
@@ -33,7 +35,9 @@ class _FeedScreenState extends State<FeedScreen> {
         const SnackBar(content: Text('피드를 새로고침하지 못했어요. 다시 시도해 주세요.')),
       );
     } finally {
-      if (mounted) setState(() => _refreshing = false);
+      if (mounted && ticket == _refreshTicket) {
+        setState(() => _refreshing = false);
+      }
     }
   }
 
@@ -58,6 +62,21 @@ class _FeedScreenState extends State<FeedScreen> {
                     key: ValueKey('feed-user-$_reloadTick'),
                     stream: context.read<UserRepository>().watchUser(user.uid),
                     builder: (context, userSnap) {
+                      if (userSnap.hasError) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                              '피드 정보를 불러오지 못했어요.\n다시 시도해 주세요.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                        );
+                      }
+                      if (!userSnap.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
                       final coupleId =
                           userSnap.data?.data()?['coupleId'] as String?;
                       if (coupleId == null || coupleId.isEmpty) {
@@ -78,7 +97,16 @@ class _FeedScreenState extends State<FeedScreen> {
                         ),
                         builder: (context, mSnap) {
                           if (mSnap.hasError) {
-                            return Center(child: Text('${mSnap.error}'));
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Text(
+                                  '피드를 불러오지 못했어요.\n네트워크 상태를 확인해 주세요.',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ),
+                            );
                           }
                           if (!mSnap.hasData) {
                             return const Center(

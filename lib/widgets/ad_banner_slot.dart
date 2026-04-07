@@ -31,6 +31,7 @@ class _AdBannerSlotState extends State<AdBannerSlot> {
   BannerAd? _ad;
   bool _loaded = false;
   bool _failed = false;
+  bool _loading = false;
 
   @override
   void initState() {
@@ -58,14 +59,26 @@ class _AdBannerSlotState extends State<AdBannerSlot> {
   }
 
   void _load() {
+    final old = _ad;
+    _ad = null;
+    if (old != null) {
+      unawaited(old.dispose());
+    }
     _failed = false;
     _loaded = false;
+    _loading = true;
     final ad = BannerAd(
       adUnitId: _bannerAdUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
-        onAdLoaded: (_) => setState(() => _loaded = true),
+        onAdLoaded: (_) {
+          if (!mounted) return;
+          setState(() {
+            _loaded = true;
+            _loading = false;
+          });
+        },
         onAdFailedToLoad: (ad, err) {
           unawaited(ad.dispose());
           debugPrint('Banner failed: $err');
@@ -74,6 +87,7 @@ class _AdBannerSlotState extends State<AdBannerSlot> {
               _failed = true;
               _ad = null;
               _loaded = false;
+              _loading = false;
             });
           }
         },
@@ -94,18 +108,23 @@ class _AdBannerSlotState extends State<AdBannerSlot> {
   Widget build(BuildContext context) {
     if (widget.settings.isPremium) return const SizedBox.shrink();
     if (_failed) return const SizedBox.shrink();
-    final h = _loaded && _ad != null ? _ad!.size.height.toDouble() : 0.0;
-    if (h <= 0) {
+    // 배너 로딩 전/후 높이를 고정해 레이아웃 점프를 줄인다.
+    final h = _loaded && _ad != null
+        ? _ad!.size.height.toDouble()
+        : AdSize.banner.height.toDouble();
+    if (!_loaded || _ad == null) {
       return SizedBox(
-        height: 50,
+        height: h,
         child: Center(
-          child: SizedBox.square(
-            dimension: 24,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
+          child: _loading
+              ? SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                )
+              : const SizedBox.shrink(),
         ),
       );
     }

@@ -14,7 +14,9 @@ class NetworkRetryBanner extends StatelessWidget {
     return StreamBuilder<List<ConnectivityResult>>(
       stream: Connectivity().onConnectivityChanged,
       builder: (context, snap) {
-        final offline = _isOffline(snap.data ?? const <ConnectivityResult>[]);
+        final offline =
+            snap.hasData &&
+            _isOffline(snap.data ?? const <ConnectivityResult>[]);
         if (!offline) return const SizedBox.shrink();
         return Container(
           margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
@@ -27,14 +29,14 @@ class NetworkRetryBanner extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  '연결이 끊겼습니다',
+                  '인터넷 연결이 끊겼어요',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onErrorContainer,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-              TextButton(onPressed: onRetry, child: const Text('Retry')),
+              TextButton(onPressed: onRetry, child: const Text('재시도')),
             ],
           ),
         );
