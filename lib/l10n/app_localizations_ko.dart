@@ -271,6 +271,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get inviteErrorUsed => '이미 사용된 초대예요.';
 
   @override
+  String get inviteErrorAlreadyClaimed => '이 초대 코드는 이미 사용이 시작되었어요.';
+
+  @override
   String get inviteErrorSelf => '본인이 만든 초대는 사용할 수 없어요.';
 
   @override

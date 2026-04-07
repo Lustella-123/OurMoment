@@ -47,6 +47,7 @@ class _BootstrapRootState extends State<_BootstrapRoot> {
   Widget? _ready;
   AppThemePalette _startupPalette = AppTheme.defaultPalette;
   String? _startupError;
+  bool _initializing = false;
 
   @override
   void initState() {
@@ -56,7 +57,8 @@ class _BootstrapRootState extends State<_BootstrapRoot> {
   }
 
   Future<void> _init() async {
-    setState(() => _startupError = null);
+    if (_initializing) return;
+    setState(() => _initializing = true);
     try {
       final startedAt = DateTime.now();
       final prefs = await SharedPreferences.getInstance();
@@ -88,6 +90,7 @@ class _BootstrapRootState extends State<_BootstrapRoot> {
 
       if (!mounted) return;
       setState(() {
+        _startupError = null;
         _ready = MultiProvider(
           providers: [
             ChangeNotifierProvider.value(value: settings),
@@ -108,6 +111,10 @@ class _BootstrapRootState extends State<_BootstrapRoot> {
         _startupError = '연결이 불안정합니다. 잠시 후 다시 시도해 주세요.';
       });
       debugPrint('앱 초기화 실패: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _initializing = false);
+      }
     }
   }
 
@@ -128,8 +135,14 @@ class _BootstrapRootState extends State<_BootstrapRoot> {
                   Text(_startupError!, textAlign: TextAlign.center),
                   const SizedBox(height: 14),
                   FilledButton(
-                    onPressed: () => unawaited(_init()),
-                    child: const Text('Retry'),
+                    onPressed: _initializing ? null : () => unawaited(_init()),
+                    child: _initializing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Retry'),
                   ),
                 ],
               ),
