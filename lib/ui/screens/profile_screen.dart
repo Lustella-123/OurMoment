@@ -68,7 +68,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _busy = true);
     try {
       await context.read<UserRepository>().updateDisplayName(uid, t);
-      if (mounted) FocusScope.of(context).unfocus();
+      if (mounted) {
+        FocusScope.of(context).unfocus();
+        await Navigator.of(context).maybePop();
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(

@@ -14,6 +14,7 @@ class CoupleTodo {
     required this.itemType,
     required this.category,
     required this.colorKey,
+    required this.sortOrder,
     this.dueAt,
   });
 
@@ -29,25 +30,29 @@ class CoupleTodo {
   final String itemType;
   final String category;
   final String colorKey;
+  final double sortOrder;
 
   factory CoupleTodo.fromDoc(DocumentSnapshot<Map<String, dynamic>> d) {
     final m = d.data() ?? const {};
     final created = m['createdAt'] as Timestamp?;
     final updated = m['updatedAt'] as Timestamp?;
     final due = m['dueAt'] as Timestamp?;
+    final createdAt = created?.toDate() ?? DateTime.now();
+    final rawSort = (m['sortOrder'] as num?)?.toDouble();
     return CoupleTodo(
       id: d.id,
       title: m['title'] as String? ?? '',
       note: m['note'] as String? ?? '',
       isDone: m['isDone'] == true,
       likeCount: (m['likeCount'] as num?)?.toInt() ?? 0,
-      createdAt: created?.toDate() ?? DateTime.now(),
+      createdAt: createdAt,
       updatedAt: updated?.toDate() ?? DateTime.now(),
       dueAt: due?.toDate(),
       createdBy: m['createdBy'] as String? ?? '',
       itemType: m['itemType'] as String? ?? 'todo',
       category: m['category'] as String? ?? '',
       colorKey: m['colorKey'] as String? ?? 'rose',
+      sortOrder: rawSort ?? createdAt.microsecondsSinceEpoch.toDouble(),
     );
   }
 }
@@ -70,6 +75,7 @@ class TodosRepository {
 
   Stream<List<CoupleTodo>> watchTodos(String coupleId) {
     return _todosCol(coupleId)
+        .orderBy('sortOrder')
         .orderBy('createdAt', descending: true)
         .limit(300)
         .snapshots()
@@ -142,6 +148,7 @@ class TodosRepository {
           ? category.trim().substring(0, 30)
           : category.trim(),
       'colorKey': colorKey,
+      'sortOrder': DateTime.now().microsecondsSinceEpoch.toDouble(),
       'createdBy': uid,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -201,6 +208,22 @@ class TodosRepository {
     }
     b.delete(doc);
     await b.commit();
+  }
+
+  Future<void> reorderTodos({
+    required String coupleId,
+    required List<String> orderedTodoIds,
+  }) async {
+    if (orderedTodoIds.isEmpty) return;
+    final batch = _db.batch();
+    for (var i = 0; i < orderedTodoIds.length; i++) {
+      final id = orderedTodoIds[i];
+      batch.update(_todoDoc(coupleId, id), {
+        'sortOrder': i.toDouble(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
   }
 
   Stream<bool> watchLiked(String coupleId, String todoId) {

@@ -34,18 +34,6 @@ class _MemoScreenState extends State<MemoScreen> {
 
   Color _cardColor(String key) => _cardColors[key] ?? _cardColors['rose']!;
 
-  SliverGridDelegate _gridDelegateForWidth(double width) {
-    final isCompact = width < 360;
-    final isWide = width >= 900;
-    final crossAxisCount = isWide ? 3 : 2;
-    return SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: crossAxisCount,
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: isCompact ? 0.7 : 0.78,
-    );
-  }
-
   void _showError(Object e) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
@@ -197,6 +185,10 @@ class _MemoScreenState extends State<MemoScreen> {
                                           )
                                           .toList();
                                     }
+                                    list.sort(
+                                      (a, b) =>
+                                          a.sortOrder.compareTo(b.sortOrder),
+                                    );
                                     if (list.isEmpty) {
                                       return Center(
                                         child: Text(
@@ -205,75 +197,107 @@ class _MemoScreenState extends State<MemoScreen> {
                                         ),
                                       );
                                     }
-                                    return LayoutBuilder(
-                                      builder: (context, constraints) {
-                                        return GridView.builder(
-                                          padding: const EdgeInsets.fromLTRB(
-                                            14,
-                                            8,
-                                            14,
-                                            14,
-                                          ),
-                                          gridDelegate: _gridDelegateForWidth(
-                                            constraints.maxWidth,
-                                          ),
-                                          itemCount: list.length,
-                                          itemBuilder: (_, i) {
-                                            final t = list[i];
-                                            final mine =
-                                                t.createdBy == user.uid;
-                                            return _MemoBoardCard(
-                                              todo: t,
-                                              mine: mine,
-                                              name: mine
-                                                  ? (myName.isEmpty
-                                                        ? '나'
-                                                        : myName)
-                                                  : '상대',
-                                              color: _cardColor(t.colorKey),
-                                              isMono: isMono,
-                                              onTap: () => _openEditor(
-                                                context,
+                                    return ReorderableListView.builder(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        14,
+                                        8,
+                                        14,
+                                        14,
+                                      ),
+                                      buildDefaultDragHandles: false,
+                                      itemCount: list.length,
+                                      onReorder: (oldIndex, newIndex) async {
+                                        if (oldIndex < newIndex) {
+                                          newIndex -= 1;
+                                        }
+                                        if (oldIndex == newIndex) return;
+                                        final moving = list.removeAt(oldIndex);
+                                        list.insert(newIndex, moving);
+                                        final orderedIds = [
+                                          for (final t in list) t.id,
+                                        ];
+                                        try {
+                                          await context
+                                              .read<TodosRepository>()
+                                              .reorderTodos(
                                                 coupleId: coupleId,
-                                                current: t,
-                                              ),
-                                              onToggleDone: t.itemType == 'todo'
-                                                  ? (v) async {
-                                                      try {
-                                                        await context
-                                                            .read<
-                                                              TodosRepository
-                                                            >()
-                                                            .toggleDone(
-                                                              coupleId:
-                                                                  coupleId,
-                                                              todoId: t.id,
-                                                              isDone: v,
-                                                            );
-                                                      } catch (e) {
-                                                        _showError(e);
-                                                      }
+                                                orderedTodoIds: orderedIds,
+                                              );
+                                        } catch (e) {
+                                          _showError(e);
+                                        }
+                                      },
+                                      itemBuilder: (_, i) {
+                                        final t = list[i];
+                                        final mine = t.createdBy == user.uid;
+                                        return Padding(
+                                          key: ValueKey(t.id),
+                                          padding: const EdgeInsets.only(
+                                            bottom: 10,
+                                          ),
+                                          child: _MemoBoardCard(
+                                            todo: t,
+                                            mine: mine,
+                                            name: mine
+                                                ? (myName.isEmpty
+                                                      ? '나'
+                                                      : myName)
+                                                : '상대',
+                                            color: _cardColor(t.colorKey),
+                                            isMono: isMono,
+                                            onTap: mine
+                                                ? () => _openEditor(
+                                                    context,
+                                                    coupleId: coupleId,
+                                                    current: t,
+                                                  )
+                                                : null,
+                                            onToggleDone:
+                                                mine && t.itemType == 'todo'
+                                                ? (v) async {
+                                                    try {
+                                                      await context
+                                                          .read<
+                                                            TodosRepository
+                                                          >()
+                                                          .toggleDone(
+                                                            coupleId: coupleId,
+                                                            todoId: t.id,
+                                                            isDone: v,
+                                                          );
+                                                    } catch (e) {
+                                                      _showError(e);
                                                     }
-                                                  : null,
-                                              onDelete: mine
-                                                  ? () async {
-                                                      try {
-                                                        await context
-                                                            .read<
-                                                              TodosRepository
-                                                            >()
-                                                            .deleteTodo(
-                                                              coupleId:
-                                                                  coupleId,
-                                                              todoId: t.id,
-                                                            );
-                                                      } catch (e) {
-                                                        _showError(e);
-                                                      }
+                                                  }
+                                                : null,
+                                            onDelete: mine
+                                                ? () async {
+                                                    try {
+                                                      await context
+                                                          .read<
+                                                            TodosRepository
+                                                          >()
+                                                          .deleteTodo(
+                                                            coupleId: coupleId,
+                                                            todoId: t.id,
+                                                          );
+                                                    } catch (e) {
+                                                      _showError(e);
                                                     }
-                                                  : null,
-                                            );
-                                          },
+                                                  }
+                                                : null,
+                                            onDragHandle:
+                                                ReorderableDragStartListener(
+                                                  index: i,
+                                                  child: Icon(
+                                                    Icons
+                                                        .drag_indicator_rounded,
+                                                    color: Theme.of(
+                                                      context,
+                                                    ).colorScheme.outline,
+                                                  ),
+                                                ),
+                                          ),
                                         );
                                       },
                                     );
@@ -558,6 +582,7 @@ class _MemoBoardCard extends StatelessWidget {
     required this.onTap,
     required this.onToggleDone,
     required this.onDelete,
+    required this.onDragHandle,
   });
 
   final CoupleTodo todo;
@@ -565,9 +590,10 @@ class _MemoBoardCard extends StatelessWidget {
   final String name;
   final Color color;
   final bool isMono;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final ValueChanged<bool>? onToggleDone;
   final Future<void> Function()? onDelete;
+  final Widget onDragHandle;
 
   @override
   Widget build(BuildContext context) {
@@ -622,6 +648,8 @@ class _MemoBoardCard extends StatelessWidget {
                         color: Theme.of(context).colorScheme.outline,
                       ),
                     ),
+                  const SizedBox(width: 6),
+                  onDragHandle,
                 ],
               ),
               const SizedBox(height: 8),
@@ -672,7 +700,7 @@ class _MemoBoardCard extends StatelessWidget {
                 ),
               if (todo.note.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                Expanded(
+                Flexible(
                   child: Text(
                     todo.note,
                     maxLines: 5,
@@ -680,8 +708,7 @@ class _MemoBoardCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
-              ] else
-                const Spacer(),
+              ],
               const SizedBox(height: 8),
               Row(
                 children: [

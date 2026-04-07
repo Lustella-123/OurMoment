@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import 'moments_repository.dart';
 
@@ -80,15 +81,12 @@ class UserRepository {
 
   Future<void> ensureUserProfile(User user) async {
     final doc = ref(user.uid);
-    await doc.set(
-      {
-        'email': user.email,
-        'displayName': user.displayName ?? user.email?.split('@').first ?? '',
-        'photoUrl': user.photoURL,
-        'createdAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await doc.set({
+      'email': user.email,
+      'displayName': user.displayName ?? user.email?.split('@').first ?? '',
+      'photoUrl': user.photoURL,
+      'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
     try {
       await ensurePersonalInviteCode(user.uid);
     } catch (e, st) {
@@ -107,16 +105,31 @@ class UserRepository {
     var trimmed = name.trim();
     if (trimmed.isEmpty) return;
     if (trimmed.length > 40) trimmed = trimmed.substring(0, 40);
-    await ref(uid).set(
-      {'displayName': trimmed},
-      SetOptions(merge: true),
-    );
+    await ref(uid).set({'displayName': trimmed}, SetOptions(merge: true));
   }
 
   /// Storage `users/{uid}/profile/avatar.jpg` → Firestore `photoUrl`
   Future<void> uploadProfilePhoto(String uid, Uint8List imageBytes) async {
-    final compressed = await MomentsRepository.compressForUpload(imageBytes);
-    final storageRef = _storage.ref('users/$uid/profile/avatar.jpg');
+    var compressed = await MomentsRepository.compressForUpload(
+      imageBytes,
+      tier: UploadTier.premium,
+    );
+    const maxProfileBytes = 4 * 1024 * 1024;
+    if (compressed.length > maxProfileBytes) {
+      for (final quality in [74, 66, 58, 50]) {
+        final out = await FlutterImageCompress.compressWithList(
+          compressed,
+          minWidth: 1400,
+          minHeight: 1400,
+          quality: quality,
+        );
+        if (out.isEmpty) continue;
+        compressed = Uint8List.fromList(out);
+        if (compressed.length <= maxProfileBytes) break;
+      }
+    }
+    final fileName = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final storageRef = _storage.ref('users/$uid/profile/$fileName');
     await storageRef.putData(
       compressed,
       SettableMetadata(contentType: 'image/jpeg'),

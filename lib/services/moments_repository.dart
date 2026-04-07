@@ -69,12 +69,16 @@ class MomentComment {
   MomentComment({
     required this.id,
     required this.authorUid,
+    required this.authorName,
+    required this.authorPhotoUrl,
     required this.text,
     required this.createdAt,
   });
 
   final String id;
   final String authorUid;
+  final String authorName;
+  final String authorPhotoUrl;
   final String text;
   final DateTime createdAt;
 
@@ -84,6 +88,8 @@ class MomentComment {
       return MomentComment(
         id: d.id,
         authorUid: '',
+        authorName: '',
+        authorPhotoUrl: '',
         text: '',
         createdAt: DateTime.now(),
       );
@@ -92,6 +98,8 @@ class MomentComment {
     return MomentComment(
       id: d.id,
       authorUid: m['authorUid'] as String? ?? '',
+      authorName: m['authorName'] as String? ?? '',
+      authorPhotoUrl: m['authorPhotoUrl'] as String? ?? '',
       text: m['text'] as String? ?? '',
       createdAt: ts?.toDate() ?? DateTime.now(),
     );
@@ -312,12 +320,39 @@ class MomentsRepository {
     if (user == null) return;
     final t = text.trim();
     if (t.isEmpty) return;
+    final userSnap = await _db.collection('users').doc(user.uid).get();
+    final userData = userSnap.data();
+    final authorName = ((userData?['displayName'] as String?) ?? '').trim();
+    final authorPhotoUrl = ((userData?['photoUrl'] as String?) ?? '').trim();
     await momentsCol(coupleId).doc(momentId).collection('comments').add({
       'authorUid': user.uid,
+      'authorName': authorName.isNotEmpty
+          ? authorName
+          : (user.displayName ?? '').trim(),
+      'authorPhotoUrl': authorPhotoUrl.isNotEmpty
+          ? authorPhotoUrl
+          : (user.photoURL ?? ''),
       'text': t.length > 2000 ? t.substring(0, 2000) : t,
       'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
     await bumpLoveTemperature(coupleId, kLoveTempDeltaComment);
+  }
+
+  Future<void> updateComment({
+    required String coupleId,
+    required String momentId,
+    required String commentId,
+    required String text,
+  }) async {
+    final t = text.trim();
+    if (t.isEmpty) return;
+    await momentsCol(
+      coupleId,
+    ).doc(momentId).collection('comments').doc(commentId).update({
+      'text': t.length > 2000 ? t.substring(0, 2000) : t,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> deleteComment(
