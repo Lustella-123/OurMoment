@@ -110,6 +110,22 @@ class _CalendarBodyState extends State<_CalendarBody> {
         _loadErrorMessage = null;
         _loadingMonth = false;
       });
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingMonth = false;
+        _loadErrorMessage = e.code == 'failed-precondition'
+            ? '캘린더 인덱스가 아직 준비되지 않았어요. 잠시 후 다시 시도해 주세요.'
+            : '달력을 불러오지 못했어요. 네트워크를 확인해 주세요.';
+      });
+    } on StateError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingMonth = false;
+        _loadErrorMessage = e.message == 'calendar_index_missing_month'
+            ? '캘린더 인덱스가 아직 준비되지 않았어요. 잠시 후 다시 시도해 주세요.'
+            : '달력을 불러오지 못했어요. 네트워크를 확인해 주세요.';
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -134,6 +150,20 @@ class _CalendarBodyState extends State<_CalendarBody> {
         _forDay = list;
         _eventsForDay = events;
         _loadErrorMessage = null;
+      });
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadErrorMessage = e.code == 'failed-precondition'
+            ? '일정 조회 인덱스가 아직 준비되지 않았어요. 잠시 후 다시 시도해 주세요.'
+            : '일정을 불러오지 못했어요. 다시 시도해 주세요.';
+      });
+    } on StateError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadErrorMessage = e.message == 'calendar_index_missing_day'
+            ? '일정 조회 인덱스가 아직 준비되지 않았어요. 잠시 후 다시 시도해 주세요.'
+            : '일정을 불러오지 못했어요. 다시 시도해 주세요.';
       });
     } catch (_) {
       if (!mounted) return;
@@ -552,6 +582,22 @@ class _CalendarBodyState extends State<_CalendarBody> {
         );
         await _loadMonth();
         await _loadDay(_selected ?? pickedDay);
+      } on FirebaseException catch (e) {
+        if (!mounted) {
+          disposeCtrls();
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.code == 'permission-denied'
+                  ? l10n.diaryFirestorePermissionDenied
+                  : (e.code == 'failed-precondition'
+                      ? '캘린더 인덱스가 아직 준비되지 않았어요.'
+                      : '일정 삭제에 실패했어요. 다시 시도해 주세요.'),
+            ),
+          ),
+        );
       } catch (_) {
         if (!mounted) {
           disposeCtrls();
@@ -588,6 +634,7 @@ class _CalendarBodyState extends State<_CalendarBody> {
           eventId: editing.id,
           title: titleCtrl.text,
           note: noteCtrl.text,
+          day: pickedDay,
           timeText: timeText,
           colorKey: colorKey,
           shapeKey: 'dot',
@@ -595,6 +642,22 @@ class _CalendarBodyState extends State<_CalendarBody> {
       }
       await _loadMonth();
       await _loadDay(_selected ?? pickedDay);
+    } on FirebaseException catch (e) {
+      if (!mounted) {
+        disposeCtrls();
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.code == 'permission-denied'
+                ? l10n.diaryFirestorePermissionDenied
+                : (e.code == 'failed-precondition'
+                    ? '캘린더 인덱스가 아직 준비되지 않았어요.'
+                    : '일정 저장에 실패했어요. 다시 시도해 주세요.'),
+          ),
+        ),
+      );
     } catch (_) {
       if (!mounted) {
         disposeCtrls();

@@ -30,6 +30,7 @@ class PairingStepException implements Exception {
 
 enum CoupleInviteError {
   invalidCode,
+  inviteAlreadyClaimed,
   cannotInviteSelf,
   alreadyInCouple,
   coupleFull,
@@ -80,56 +81,8 @@ class CoupleRepository {
     final creatorUid = codeSnap.data()!['uid'] as String;
     if (creatorUid == uid) throw CoupleInviteError.cannotInviteSelf;
 
-    DocumentSnapshot<Map<String, dynamic>> creatorUserSnap;
-    try {
-      creatorUserSnap = await _db.collection('users').doc(creatorUid).get();
-    } catch (e) {
-      _failAtStep(e, PairingStep.readCreatorUser);
-    }
-    final onUser = creatorUserSnap.data()?['inviteCode'] as String?;
-    if (onUser == null || onUser.toUpperCase() != code) {
-      throw CoupleInviteError.invalidCode;
-    }
-
     final joinerRef = _db.collection('users').doc(uid);
-
-    // 이전 시도에서 couples만 반영되고 users.coupleId 쓰기가 실패한 경우 — 재시도 시 coupleFull에 걸리지 않게 복구
-    final existingCreatorCoupleId =
-        creatorUserSnap.data()?['coupleId'] as String?;
-    if (existingCreatorCoupleId != null) {
-      DocumentSnapshot<Map<String, dynamic>> preCouple;
-      try {
-        preCouple =
-            await _db.collection('couples').doc(existingCreatorCoupleId).get();
-      } catch (e) {
-        _failAtStep(e, PairingStep.repairReadCouple);
-      }
-      if (preCouple.exists) {
-        final preMembers = List<String>.from(
-          preCouple.data()?['memberIds'] as List<dynamic>? ?? [],
-        );
-        if (preMembers.contains(uid) && preMembers.contains(creatorUid)) {
-          DocumentSnapshot<Map<String, dynamic>> mePre;
-          try {
-            mePre = await joinerRef.get();
-          } catch (e) {
-            _failAtStep(e, PairingStep.repairReadJoiner);
-          }
-          final myCid = mePre.data()?['coupleId'] as String?;
-          if (myCid == null) {
-            try {
-              await joinerRef.update({'coupleId': existingCreatorCoupleId});
-            } catch (e) {
-              _failAtStep(e, PairingStep.repairUpdateJoiner);
-            }
-            return;
-          }
-          if (myCid == existingCreatorCoupleId) {
-            return;
-          }
-        }
-      }
-    }
+    final inviteRef = _db.collection('inviteCodes').doc(code);
 
     String? newCoupleIdForJoiner;
 
@@ -138,6 +91,23 @@ class CoupleRepository {
         final joinerSnap = await txn.get(joinerRef);
         if ((joinerSnap.data()?['coupleId'] as String?) != null) {
           throw CoupleInviteError.inviteeAlreadyPaired;
+        }
+
+        final inviteSnap = await txn.get(inviteRef);
+        if (!inviteSnap.exists) throw CoupleInviteError.invalidCode;
+        final inviteUid = inviteSnap.data()?['uid'] as String?;
+        if (inviteUid == null || inviteUid != creatorUid) {
+          throw CoupleInviteError.invalidCode;
+        }
+        final claimedBy = inviteSnap.data()?['claimedBy'] as String?;
+        if (claimedBy != null && claimedBy != uid) {
+          throw CoupleInviteError.inviteAlreadyClaimed;
+        }
+        if (claimedBy == null) {
+          txn.update(inviteRef, {
+            'claimedBy': uid,
+            'claimedAt': FieldValue.serverTimestamp(),
+          });
         }
 
         final creatorRef = _db.collection('users').doc(creatorUid);
@@ -154,11 +124,12 @@ class CoupleRepository {
         if (creatorCoupleId == null) {
           final coupleRef = _db.collection('couples').doc();
           final newId = coupleRef.id;
-          // serverTimestamp는 규칙 keys()와 맞지 않아 거절되는 사례 있음 — 클라이언트 Timestamp로 통일
           txn.set(coupleRef, {
             'memberIds': [creatorUid, uid],
             'createdAt': Timestamp.now(),
+            'updatedAt': FieldValue.serverTimestamp(),
             'loveTemperature': 0,
+            'inviteCodeUsed': code,
           });
           txn.update(creatorRef, {'coupleId': newId});
           newCoupleIdForJoiner = newId;
@@ -172,13 +143,12 @@ class CoupleRepository {
         final members = List<String>.from(
           coupleSnap.data()!['memberIds'] as List<dynamic>,
         );
-        if (members.length >= 2) throw CoupleInviteError.coupleFull;
         if (!members.contains(creatorUid)) throw CoupleInviteError.invalidCode;
-        if (members.contains(uid)) throw CoupleInviteError.alreadyInCouple;
-
-        members.add(uid);
-        txn.update(coupleRef, {'memberIds': members});
-        newCoupleIdForJoiner = creatorCoupleId;
+        if (members.contains(uid)) {
+          newCoupleIdForJoiner = creatorCoupleId;
+          return;
+        }
+        throw CoupleInviteError.coupleFull;
       });
     } catch (e) {
       if (e is CoupleInviteError) rethrow;

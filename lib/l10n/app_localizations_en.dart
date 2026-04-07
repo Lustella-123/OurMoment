@@ -275,6 +275,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get inviteErrorUsed => 'This invite was already used.';
 
   @override
+  String get inviteErrorAlreadyClaimed =>
+      'This invite was already claimed by someone else.';
+
+  @override
   String get inviteErrorSelf => 'You cannot use your own invite.';
 
   @override

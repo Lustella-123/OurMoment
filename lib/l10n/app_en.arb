@@ -99,6 +99,7 @@
     }
   },
   "inviteErrorInvalid": "We could not find that code.",
+  "inviteErrorAlreadyClaimed": "This invite was already claimed by someone else.",
   "inviteErrorExpired": "This invite expired. Ask for a new one.",
   "inviteErrorUsed": "This invite was already used.",
   "inviteErrorSelf": "You cannot use your own invite.",

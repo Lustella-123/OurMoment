@@ -101,13 +101,13 @@ class _ProfileBootstrap extends StatefulWidget {
 
 class _ProfileBootstrapState extends State<_ProfileBootstrap> {
   late Future<void> _future;
-  bool _profileLoadStarted = false;
+  String? _futureUid;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_profileLoadStarted) return;
-    _profileLoadStarted = true;
+    if (_futureUid == widget.user.uid) return;
+    _futureUid = widget.user.uid;
     _future = context.read<UserRepository>().ensureUserProfile(widget.user);
   }
 

@@ -46,6 +46,8 @@ class _PairingScreenState extends State<PairingScreen> {
     switch (e) {
       case CoupleInviteError.invalidCode:
         return l10n.inviteErrorInvalid;
+      case CoupleInviteError.inviteAlreadyClaimed:
+        return l10n.inviteErrorAlreadyClaimed;
       case CoupleInviteError.cannotInviteSelf:
         return l10n.inviteErrorSelf;
       case CoupleInviteError.alreadyInCouple:
@@ -92,22 +94,21 @@ class _PairingScreenState extends State<PairingScreen> {
       );
     } on PairingStepException catch (e) {
       if (!mounted) return;
-      final detail = '${e.step.labelKo}\n${e.cause}';
-      setState(() => _pairingDiagnostic = detail);
+      setState(() => _pairingDiagnostic = e.step.labelKo);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${e.step.labelKo}\n(자세한 내용은 화면의 진단 영역을 확인해 주세요)',
+            '${e.step.labelKo}\n다시 시도해 주세요.',
           ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;
-      final detail = '기타 오류\n$e';
+      final detail = '기타 오류';
       setState(() => _pairingDiagnostic = detail);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${l10n.inviteErrorGeneric}\n$e')),
+        SnackBar(content: Text(l10n.inviteErrorGeneric)),
       );
     } finally {
       if (mounted) setState(() => _busyConnect = false);
