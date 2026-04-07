@@ -358,7 +358,6 @@ class _MemoScreenState extends State<MemoScreen> {
   }) async {
     if (_openingEditor) return;
     if (mounted) setState(() => _openingEditor = true);
-    final l10n = AppLocalizations.of(context)!;
     final repo = context.read<TodosRepository>();
     final titleCtrl = TextEditingController(text: current?.title ?? '');
     final noteCtrl = TextEditingController(text: current?.note ?? '');
@@ -366,19 +365,19 @@ class _MemoScreenState extends State<MemoScreen> {
     var category = current?.category ?? '';
     var colorKey = current?.colorKey ?? 'rose';
     DateTime? due = current?.dueAt;
-    var saving = false;
     try {
       final categories = await repo.watchCategories(coupleId).first;
       if (!context.mounted) {
         return;
       }
-      await showModalBottomSheet<bool>(
+      final payload = await showModalBottomSheet<_MemoEditorPayload>(
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
         builder: (ctx) => StatefulBuilder(
           builder: (ctx, setModal) {
             final theme = Theme.of(ctx);
+            final l10n = AppLocalizations.of(ctx)!;
             return Padding(
               padding: EdgeInsets.only(
                 left: 16,
@@ -501,47 +500,21 @@ class _MemoScreenState extends State<MemoScreen> {
                     ],
                     const SizedBox(height: 10),
                     FilledButton(
-                      onPressed: saving
-                          ? null
-                          : () async {
-                              final title = titleCtrl.text.trim();
-                              if (title.isEmpty) return;
-                              setModal(() => saving = true);
-                              try {
-                                if (current == null) {
-                                  await repo.addTodo(
-                                    coupleId: coupleId,
-                                    title: title,
-                                    note: noteCtrl.text,
-                                    itemType: itemType,
-                                    category: category,
-                                    colorKey: colorKey,
-                                    dueAt: itemType == 'todo' ? due : null,
-                                  );
-                                } else {
-                                  await repo.updateTodo(
-                                    coupleId: coupleId,
-                                    todoId: current.id,
-                                    title: title,
-                                    note: noteCtrl.text,
-                                    itemType: itemType,
-                                    category: category,
-                                    colorKey: colorKey,
-                                    dueAt: itemType == 'todo' ? due : null,
-                                  );
-                                }
-                                if (!ctx.mounted) return;
-                                FocusScope.of(ctx).unfocus();
-                                Navigator.of(ctx).pop(true);
-                              } catch (e) {
-                                if (ctx.mounted) {
-                                  ScaffoldMessenger.of(
-                                    ctx,
-                                  ).showSnackBar(SnackBar(content: Text('$e')));
-                                  setModal(() => saving = false);
-                                }
-                              }
-                            },
+                      onPressed: () {
+                        final title = titleCtrl.text.trim();
+                        if (title.isEmpty) return;
+                        FocusScope.of(ctx).unfocus();
+                        Navigator.of(ctx).pop(
+                          _MemoEditorPayload(
+                            title: title,
+                            note: noteCtrl.text,
+                            itemType: itemType,
+                            category: category,
+                            colorKey: colorKey,
+                            dueAt: itemType == 'todo' ? due : null,
+                          ),
+                        );
+                      },
                       child: Text(
                         current == null ? l10n.memoAdd : l10n.profileSave,
                       ),
@@ -553,17 +526,57 @@ class _MemoScreenState extends State<MemoScreen> {
           },
         ),
       );
+      if (payload == null) return;
+      try {
+        if (current == null) {
+          await repo.addTodo(
+            coupleId: coupleId,
+            title: payload.title,
+            note: payload.note,
+            itemType: payload.itemType,
+            category: payload.category,
+            colorKey: payload.colorKey,
+            dueAt: payload.dueAt,
+          );
+        } else {
+          await repo.updateTodo(
+            coupleId: coupleId,
+            todoId: current.id,
+            title: payload.title,
+            note: payload.note,
+            itemType: payload.itemType,
+            category: payload.category,
+            colorKey: payload.colorKey,
+            dueAt: payload.dueAt,
+          );
+        }
+      } catch (e) {
+        _showError(e);
+      }
     } finally {
       titleCtrl.dispose();
       noteCtrl.dispose();
-      if (mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          setState(() => _openingEditor = false);
-        });
-      }
+      if (mounted) setState(() => _openingEditor = false);
     }
   }
+}
+
+class _MemoEditorPayload {
+  _MemoEditorPayload({
+    required this.title,
+    required this.note,
+    required this.itemType,
+    required this.category,
+    required this.colorKey,
+    required this.dueAt,
+  });
+
+  final String title;
+  final String note;
+  final String itemType;
+  final String category;
+  final String colorKey;
+  final DateTime? dueAt;
 }
 
 class _CategoryChip extends StatelessWidget {
