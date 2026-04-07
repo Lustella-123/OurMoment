@@ -179,20 +179,21 @@ class _DiaryScreenState extends State<DiaryScreen> {
       messenger.showSnackBar(SnackBar(content: Text(l10n.diaryPostedSuccess)));
       nav.goHome();
     } on MonthlyPhotoLimitExceededException {
-      if (!mounted) return;
       final monthlyPrice = NumberFormat('#,###').format(2900);
+      final dialogContext = context;
+      if (!dialogContext.mounted) return;
       await showDialog<void>(
-        context: context,
-        builder: (dialogContext) {
+        context: dialogContext,
+        builder: (sheetContext) {
           return AlertDialog(
             title: const Text('무료 업로드 한도 도달'),
             content: Text(
-              '이번 달 무료 업로드 한도(${kFreeMonthlyPhotoLimit}장)를 초과했어요.\n'
-              '프리미엄(커플 통합 월 ${monthlyPrice}원)으로 무제한 업로드를 이용해 보세요.',
+              '이번 달 무료 업로드 한도($kFreeMonthlyPhotoLimit장)를 초과했어요.\n'
+              '프리미엄(커플 통합 월 $monthlyPrice원)으로 무제한 업로드를 이용해 보세요.',
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
+                onPressed: () => Navigator.pop(sheetContext),
                 child: const Text('닫기'),
               ),
             ],
