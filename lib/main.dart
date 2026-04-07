@@ -12,6 +12,7 @@ import 'firebase_options.dart';
 import 'services/auth_repository.dart';
 import 'services/calendar_events_repository.dart';
 import 'services/couple_repository.dart';
+import 'services/couple_upload_policy_service.dart';
 import 'services/moments_repository.dart';
 import 'services/todos_repository.dart';
 import 'services/user_repository.dart';
@@ -99,6 +100,7 @@ class _BootstrapRootState extends State<_BootstrapRoot> {
             Provider(create: (_) => UserRepository()),
             Provider(create: (_) => CoupleRepository()),
             Provider(create: (_) => MomentsRepository()),
+            Provider(create: (_) => CoupleUploadPolicyService()),
             Provider(create: (_) => CalendarEventsRepository()),
             Provider(create: (_) => TodosRepository()),
           ],
