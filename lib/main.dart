@@ -374,7 +374,7 @@ class _MatchingScreenState extends State<_MatchingScreen> {
 초대 코드: $_myCode
 링크: $inviteLink
 ''';
-    await SharePlus.instance.share(ShareParams(text: message));
+    await Share.share(message);
   }
 
   Future<void> _connectCouple() async {
