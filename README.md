@@ -1,73 +1,30 @@
-# OurMoment
+# OurMoment Starter
 
-Flutter + Firebase 기반 커플 앱입니다.
+기존 앱 기능 코드를 제거하고, 새로 시작할 수 있도록 최소 골격만 남긴 Flutter + Firebase 스타터입니다.
 
-## Mac에서 실행 확인 후 TestFlight 업로드
+## 현재 남겨둔 것
 
-질문하신 대로 **Mac에서 Xcode로 프로젝트를 가져와 실행 확인한 다음, 아래 bash 스크립트를 실행하면 업로드까지 자동화**됩니다.
+- `pubspec.yaml`의 기존 의존성
+- `lib/firebase_options.dart` (Firebase / Storage 설정)
+- `lib/main.dart` 최소 시작 화면
+  - 앱 시작 시 Firebase 초기화 시도
+  - 현재 프로젝트 ID / Storage 버킷 표시
 
-### 0) 사전 조건
-
-- macOS
-- Xcode 설치 및 최초 1회 실행
-- Apple Developer Program 가입 계정
-- App Store Connect에서 앱 등록 완료 (`com.jscompany.ourmoment`)
-- App Store Connect API Key 발급 (권장)
-  - `ASC_KEY_ID`
-  - `ASC_ISSUER_ID`
-  - `.p8` 키 파일 내용(base64)
-
-### 1) 프로젝트 가져오기 + 로컬 실행 확인(Xcode)
-
-1. Cursor(또는 git clone)로 현재 GitHub 브랜치를 Mac에 가져옵니다.
-2. 의존성 설치:
-   ```bash
-   flutter pub get
-   cd ios && pod install && cd ..
-   ```
-3. Xcode에서 `ios/Runner.xcworkspace`를 엽니다.
-4. Team/Signing 설정을 확인하고 시뮬레이터 또는 실제 기기에서 1회 실행합니다.
-   - 이 단계에서 빌드/서명 문제가 없는지 먼저 확인하는 것이 안전합니다.
-
-### 2) TestFlight fastlane 초기 설정(최초 1회)
+## 빠른 시작
 
 ```bash
-bash scripts/setup_testflight_fastlane.sh
+flutter pub get
+flutter run
 ```
 
-실행 후 `ios/fastlane/.env`가 생성됩니다. 아래 값을 입력하세요.
+## 구조
 
-```env
-APP_IDENTIFIER=com.jscompany.ourmoment
-ASC_KEY_ID=...
-ASC_ISSUER_ID=...
-ASC_KEY_CONTENT=... # AuthKey_XXXXXX.p8 내용을 base64로 인코딩한 값
-APPLE_TEAM_ID=...   # 선택
-ITC_TEAM_ID=...     # 선택
+```text
+lib/
+  firebase_options.dart
+  main.dart
+test/
+  widget_test.dart
 ```
 
-> base64 예시:
-> `base64 -i AuthKey_XXXXXX.p8 | tr -d '\n'`
-
-### 3) TestFlight 업로드
-
-```bash
-bash scripts/release_testflight.sh "이번 빌드 변경사항 요약"
-```
-
-스크립트가 내부적으로 `bundle exec fastlane ios upload_testflight`를 실행해,
-아카이브 후 TestFlight로 업로드합니다.
-
-### 4) 자주 발생하는 문제
-
-- `TestFlight upload is supported only on macOS.`
-  - Mac이 아닌 환경에서 실행한 경우입니다.
-- `xcodebuild를 찾을 수 없습니다.`
-  - Xcode 미설치 또는 Command Line Tools 설정 문제입니다.
-- 인증/업로드 실패
-  - `ios/fastlane/.env`의 API Key 값 오입력 여부를 먼저 확인하세요.
-
-## 관련 스크립트
-
-- `scripts/setup_testflight_fastlane.sh`: fastlane/Bundler 설치 및 `.env` 템플릿 생성
-- `scripts/release_testflight.sh`: TestFlight 업로드 실행
+이 상태를 기준으로 필요한 화면, 상태관리, 도메인 로직을 새로 추가하면 됩니다.
