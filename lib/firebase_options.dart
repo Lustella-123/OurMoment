@@ -9,7 +9,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError('Web은 추후 설정에서 지원합니다.');
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.iOS:
@@ -18,6 +18,8 @@ class DefaultFirebaseOptions {
         return android;
       case TargetPlatform.macOS:
         return macos;
+      case TargetPlatform.linux:
+        return linux;
       default:
         throw UnsupportedError('DefaultFirebaseOptions는 이 플랫폼용으로 아직 없습니다.');
     }
@@ -48,5 +50,22 @@ class DefaultFirebaseOptions {
     projectId: 'sparta-11632',
     storageBucket: 'sparta-11632.firebasestorage.app',
     iosBundleId: 'com.jscompany.ourmoment',
+  );
+
+  static const FirebaseOptions linux = FirebaseOptions(
+    apiKey: 'AIzaSyA17RROPmiQ0BpH3WLBwPgdfER1nf0lcKA',
+    appId: '1:529018795002:web:ourmomentlinuxmvp',
+    messagingSenderId: '529018795002',
+    projectId: 'sparta-11632',
+    storageBucket: 'sparta-11632.firebasestorage.app',
+  );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyA17RROPmiQ0BpH3WLBwPgdfER1nf0lcKA',
+    appId: '1:529018795002:web:ourmomentlinuxmvp',
+    messagingSenderId: '529018795002',
+    projectId: 'sparta-11632',
+    authDomain: 'sparta-11632.firebaseapp.com',
+    storageBucket: 'sparta-11632.firebasestorage.app',
   );
 }

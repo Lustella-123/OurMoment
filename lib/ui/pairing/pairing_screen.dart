@@ -91,13 +91,13 @@ class _PairingScreenState extends State<PairingScreen> {
     setState(() => _busyCreateInvite = true);
     try {
       await context.read<CoupleRepository>().createInviteCode(
-            relationshipStart: relationshipStart,
-          );
+        relationshipStart: relationshipStart,
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_messageForCreateError(e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_messageForCreateError(e))));
     } finally {
       if (mounted) setState(() => _busyCreateInvite = false);
     }
@@ -110,14 +110,12 @@ class _PairingScreenState extends State<PairingScreen> {
     } on CoupleInviteError catch (e) {
       if (!mounted) return;
       final msg = _mapError(e);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('연결 중 오류가 발생했습니다: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('연결 중 오류가 발생했습니다: $e')));
     } finally {
       if (mounted) setState(() => _busyConnect = false);
     }
@@ -180,10 +178,7 @@ class _PairingScreenState extends State<PairingScreen> {
           const SizedBox(height: 20),
           const Text(
             '사귄 날짜',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: Colors.black,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black),
           ),
           const SizedBox(height: 8),
           Text(
@@ -202,10 +197,8 @@ class _PairingScreenState extends State<PairingScreen> {
           ElevatedButton(
             onPressed: (_busyCreateInvite || effectiveRelationshipStart == null)
                 ? null
-                : () {
-                    final selected = effectiveRelationshipStart;
-                    if (selected == null) return;
-                    _createInvite(selected);
+                : () async {
+                    await _createInvite(effectiveRelationshipStart);
                   },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.black,
@@ -226,7 +219,10 @@ class _PairingScreenState extends State<PairingScreen> {
           if (inviteCode != null && inviteCode.isNotEmpty) ...[
             const Text(
               '내 초대 코드',
-              style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black),
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Colors.black,
+              ),
             ),
             const SizedBox(height: 8),
             SelectableText(
@@ -288,10 +284,7 @@ class _PairingScreenState extends State<PairingScreen> {
           const SizedBox(height: 24),
           TextButton(
             onPressed: _anyBusy ? null : _logout,
-            child: const Text(
-              '로그아웃',
-              style: TextStyle(color: Colors.black),
-            ),
+            child: const Text('로그아웃', style: TextStyle(color: Colors.black)),
           ),
         ],
       ),
@@ -325,7 +318,10 @@ class _PairingScreenState extends State<PairingScreen> {
               if (inviteCode != null && inviteCode.isNotEmpty) ...[
                 const Text(
                   '내 초대 코드',
-                  style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 SelectableText(
@@ -339,7 +335,9 @@ class _PairingScreenState extends State<PairingScreen> {
                 const SizedBox(height: 10),
                 OutlinedButton(
                   onPressed: () => _share(inviteCode),
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.black),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.black,
+                  ),
                   child: const Text('초대 링크 공유'),
                 ),
                 const SizedBox(height: 20),
@@ -378,9 +376,7 @@ class _PairingScreenState extends State<PairingScreen> {
         if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
           return const _PlainScaffold(
             title: 'Our Moment',
-            body: Center(
-              child: CircularProgressIndicator(color: Colors.black),
-            ),
+            body: Center(child: CircularProgressIndicator(color: Colors.black)),
           );
         }
         final data = snap.data?.data();
@@ -392,9 +388,7 @@ class _PairingScreenState extends State<PairingScreen> {
         if (status == UserRepository.statusCoupled) {
           return const _PlainScaffold(
             title: 'Our Moment',
-            body: Center(
-              child: CircularProgressIndicator(color: Colors.black),
-            ),
+            body: Center(child: CircularProgressIndicator(color: Colors.black)),
           );
         }
         return _soloView(data);
@@ -404,7 +398,11 @@ class _PairingScreenState extends State<PairingScreen> {
 }
 
 class CoupledHomeScreen extends StatelessWidget {
-  const CoupledHomeScreen({super.key, required this.uid, required this.coupleId});
+  const CoupledHomeScreen({
+    super.key,
+    required this.uid,
+    required this.coupleId,
+  });
 
   final String uid;
   final String coupleId;
@@ -438,7 +436,8 @@ class CoupledHomeScreen extends StatelessWidget {
               ),
             );
           }
-          if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+          if (snap.connectionState == ConnectionState.waiting &&
+              !snap.hasData) {
             return const Center(
               child: CircularProgressIndicator(color: Colors.black),
             );
@@ -528,10 +527,7 @@ class _PlainScaffold extends StatelessWidget {
         foregroundColor: Colors.black,
         surfaceTintColor: Colors.white,
         elevation: 0,
-        title: Text(
-          title,
-          style: const TextStyle(color: Colors.black),
-        ),
+        title: Text(title, style: const TextStyle(color: Colors.black)),
       ),
       body: DefaultTextStyle(
         style: const TextStyle(color: Colors.black),

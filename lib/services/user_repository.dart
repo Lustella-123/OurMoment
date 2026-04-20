@@ -40,18 +40,14 @@ class UserRepository {
       final snap = await txn.get(doc);
       final data = snap.data() ?? <String, dynamic>{};
       final nextStatus = _inferOrDefaultStatus(data);
-      txn.set(
-        doc,
-        {
-          'email': user.email,
-          'displayName': user.displayName ?? user.email?.split('@').first ?? '',
-          'photoUrl': user.photoURL,
-          'status': nextStatus,
-          if (!snap.exists) 'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      txn.set(doc, {
+        'email': user.email,
+        'displayName': user.displayName ?? user.email?.split('@').first ?? '',
+        'photoUrl': user.photoURL,
+        'status': nextStatus,
+        if (!snap.exists) 'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     });
   }
 
@@ -76,10 +72,7 @@ class UserRepository {
     var trimmed = name.trim();
     if (trimmed.isEmpty) return;
     if (trimmed.length > 40) trimmed = trimmed.substring(0, 40);
-    await ref(uid).set(
-      {'displayName': trimmed},
-      SetOptions(merge: true),
-    );
+    await ref(uid).set({'displayName': trimmed}, SetOptions(merge: true));
   }
 
   /// Storage `users/{uid}/profile/avatar.jpg` → Firestore `photoUrl`

@@ -41,9 +41,7 @@ class CoupleRepository {
   }
 
   /// SOLO 유저가 반드시 사귄 날짜를 먼저 선택한 뒤 초대 코드를 생성.
-  Future<String> createInviteCode({
-    required DateTime relationshipStart,
-  }) async {
+  Future<String> createInviteCode({required DateTime relationshipStart}) async {
     final user = _auth.currentUser;
     if (user == null) {
       throw CoupleInviteError.notAuthenticated;
@@ -73,9 +71,9 @@ class CoupleRepository {
           final existingCode = meData['inviteCode'] as String?;
           final code =
               (existingCode != null &&
-                      existingCode.length == UserRepository.inviteCodeLength)
-                  ? existingCode
-                  : _randomInviteCode();
+                  existingCode.length == UserRepository.inviteCodeLength)
+              ? existingCode
+              : _randomInviteCode();
           if (existingCode == null || existingCode.isEmpty) {
             final codeRef = _db.collection('inviteCodes').doc(code);
             final codeSnap = await txn.get(codeRef);
@@ -188,9 +186,7 @@ class CoupleRepository {
     bool clearRelationshipStart = false,
     bool clearWeddingDate = false,
   }) async {
-    final data = <String, dynamic>{
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
+    final data = <String, dynamic>{'updatedAt': FieldValue.serverTimestamp()};
     if (clearRelationshipStart) {
       data['relationshipStart'] = FieldValue.delete();
     } else if (relationshipStart != null) {
@@ -206,11 +202,7 @@ class CoupleRepository {
       data['weddingDate'] = FieldValue.delete();
     } else if (weddingDate != null) {
       data['weddingDate'] = Timestamp.fromDate(
-        DateTime(
-          weddingDate.year,
-          weddingDate.month,
-          weddingDate.day,
-        ),
+        DateTime(weddingDate.year, weddingDate.month, weddingDate.day),
       );
     }
     if (data.length == 1) return;
@@ -219,12 +211,9 @@ class CoupleRepository {
 
   /// 연결 직후 기념일 안내를 마쳤음 (다시 띄우지 않음)
   Future<void> markMilestonesOnboardingDone(String coupleId) async {
-    await coupleRef(coupleId).set(
-      {
-        'milestonesOnboardingDone': true,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await coupleRef(coupleId).set({
+      'milestonesOnboardingDone': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 }

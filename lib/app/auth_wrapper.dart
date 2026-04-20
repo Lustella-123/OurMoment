@@ -12,7 +12,6 @@ import '../services/invite_deep_link.dart';
 import '../services/user_repository.dart';
 import '../state/app_settings.dart';
 import '../ui/auth/login_screen.dart';
-import '../ui/auth/verify_email_screen.dart';
 import '../ui/pairing/pairing_screen.dart';
 import '../ui/splash/our_moment_splash_layout.dart';
 
@@ -73,10 +72,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
         final user = snap.data ?? FirebaseAuth.instance.currentUser;
         if (user == null) {
           return const LoginScreen();
-        }
-
-        if (authRepo.needsEmailVerification(user)) {
-          return VerifyEmailScreen(user: user);
         }
 
         return _ProfileBootstrap(
