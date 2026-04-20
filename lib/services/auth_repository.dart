@@ -9,14 +9,13 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 class AuthRepository {
   AuthRepository({FirebaseAuth? auth, GoogleSignIn? googleSignIn})
     : _auth = auth ?? FirebaseAuth.instance,
-      _googleSignIn = googleSignIn ?? GoogleSignIn();
+      _googleSignIn = googleSignIn;
 
   final FirebaseAuth _auth;
-  final GoogleSignIn _googleSignIn;
+  GoogleSignIn? _googleSignIn;
 
   static const String _iosBundleId = 'com.jscompany.ourmoment';
-  static const String _authContinueUrl =
-      'https://sparta-11632.firebaseapp.com';
+  static const String _authContinueUrl = 'https://sparta-11632.firebaseapp.com';
 
   /// 인증 메일 링크가 iOS 앱과 연결되도록 설정 (스팸·수신 문제 완화에도 도움되는 경우 있음)
   ActionCodeSettings get _emailActionCodeSettings => ActionCodeSettings(
@@ -43,7 +42,8 @@ class AuthRepository {
   }
 
   Future<UserCredential> signInWithGoogle() async {
-    final account = await _googleSignIn.signIn();
+    final client = _googleSignIn ??= GoogleSignIn();
+    final account = await client.signIn();
     if (account == null) {
       throw StateError('google_cancelled');
     }
@@ -105,7 +105,12 @@ class AuthRepository {
   }
 
   Future<void> signOut() async {
-    await Future.wait([_auth.signOut(), _googleSignIn.signOut()]);
+    final signOuts = <Future<void>>[_auth.signOut()];
+    final client = _googleSignIn;
+    if (client != null) {
+      signOuts.add(client.signOut());
+    }
+    await Future.wait(signOuts);
   }
 
   Future<void> sendPasswordResetEmail(String email) async {

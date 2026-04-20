@@ -12,9 +12,7 @@ import '../services/invite_deep_link.dart';
 import '../services/user_repository.dart';
 import '../state/app_settings.dart';
 import '../ui/auth/login_screen.dart';
-import '../ui/auth/verify_email_screen.dart';
 import '../ui/pairing/pairing_screen.dart';
-import '../ui/shell/main_shell.dart';
 import '../ui/splash/our_moment_splash_layout.dart';
 
 class AuthWrapper extends StatefulWidget {
@@ -74,10 +72,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
         final user = snap.data ?? FirebaseAuth.instance.currentUser;
         if (user == null) {
           return const LoginScreen();
-        }
-
-        if (authRepo.needsEmailVerification(user)) {
-          return VerifyEmailScreen(user: user);
         }
 
         return _ProfileBootstrap(
@@ -241,13 +235,44 @@ class _CoupleGateState extends State<_CoupleGate> {
         if (!snap.hasData) {
           return const _SplashScaffold();
         }
-        final coupleId = snap.data?.data()?['coupleId'] as String?;
-        if (coupleId == null || coupleId.isEmpty) {
-          return PairingScreen(initialInviteCode: widget.pendingInviteCode);
+        final data = snap.data?.data();
+        final coupleId = data?['coupleId'] as String?;
+        final status = _normalizedStatus(data);
+        if (status == UserRepository.statusSolo) {
+          return PairingScreen(
+            uid: widget.uid,
+            mode: PairingScreenMode.solo,
+            initialInviteCode: widget.pendingInviteCode,
+          );
         }
-        return const MainShell();
+        if (status == UserRepository.statusPending) {
+          return PairingScreen(
+            uid: widget.uid,
+            mode: PairingScreenMode.pending,
+          );
+        }
+        if (status == UserRepository.statusCoupled &&
+            coupleId != null &&
+            coupleId.isNotEmpty) {
+          return CoupledHomeScreen(uid: widget.uid, coupleId: coupleId);
+        }
+        return PairingScreen(
+          uid: widget.uid,
+          mode: PairingScreenMode.solo,
+          initialInviteCode: widget.pendingInviteCode,
+        );
       },
     );
+  }
+
+  String _normalizedStatus(Map<String, dynamic>? data) {
+    final raw = (data?['status'] as String?)?.toUpperCase();
+    if (raw == UserRepository.statusSolo ||
+        raw == UserRepository.statusPending ||
+        raw == UserRepository.statusCoupled) {
+      return raw!;
+    }
+    return UserRepository.statusSolo;
   }
 }
 

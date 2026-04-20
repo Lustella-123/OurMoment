@@ -1,6 +1,5 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:ourmoment/l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -9,9 +8,18 @@ import '../../services/couple_repository.dart';
 import '../../services/invite_deep_link.dart';
 import '../../services/user_repository.dart';
 
-class PairingScreen extends StatefulWidget {
-  const PairingScreen({super.key, this.initialInviteCode});
+enum PairingScreenMode { solo, pending }
 
+class PairingScreen extends StatefulWidget {
+  const PairingScreen({
+    super.key,
+    required this.uid,
+    required this.mode,
+    this.initialInviteCode,
+  });
+
+  final String uid;
+  final PairingScreenMode mode;
   final String? initialInviteCode;
 
   @override
@@ -20,12 +28,10 @@ class PairingScreen extends StatefulWidget {
 
 class _PairingScreenState extends State<PairingScreen> {
   final _codeCtrl = TextEditingController();
-  /// 연결하기 진행 중 — 공유 버튼은 막지 않음
+  bool _busyCreateInvite = false;
   bool _busyConnect = false;
-  bool _busyEnsureCode = false;
   bool _busyLogout = false;
-  /// 마지막 실패 시 단계·상세 (옆/아래 패널)
-  String? _pairingDiagnostic;
+  DateTime? _selectedRelationshipStart;
 
   @override
   void initState() {
@@ -42,87 +48,87 @@ class _PairingScreenState extends State<PairingScreen> {
     super.dispose();
   }
 
-  String _mapError(AppLocalizations l10n, CoupleInviteError e) {
+  String _mapError(CoupleInviteError e) {
     switch (e) {
       case CoupleInviteError.invalidCode:
-        return l10n.inviteErrorInvalid;
+        return '유효하지 않은 초대 코드입니다.';
       case CoupleInviteError.cannotInviteSelf:
-        return l10n.inviteErrorSelf;
+        return '내 초대 코드는 내가 입력할 수 없습니다.';
       case CoupleInviteError.alreadyInCouple:
+        return '이미 커플 상태입니다.';
       case CoupleInviteError.inviteeAlreadyPaired:
-        return l10n.inviteErrorAlreadyPaired;
+        return '이미 커플 연결이 완료된 계정입니다.';
       case CoupleInviteError.coupleFull:
-        return l10n.inviteErrorFull;
+        return '이미 연결이 완료된 코드입니다.';
       case CoupleInviteError.notAuthenticated:
-        return l10n.inviteErrorGeneric;
+        return '로그인이 필요합니다.';
+      case CoupleInviteError.relationshipStartRequired:
+        return '사귄 날짜를 먼저 선택해 주세요.';
     }
   }
 
-  Future<void> _ensureCode() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-    setState(() => _busyEnsureCode = true);
+  Future<void> _pickRelationshipStart() async {
+    final now = DateTime.now();
+    final initial = _selectedRelationshipStart ?? now;
+    final picked = await showDatePicker(
+      context: context,
+      firstDate: DateTime(1970, 1, 1),
+      lastDate: DateTime(now.year, now.month, now.day),
+      initialDate: DateTime(initial.year, initial.month, initial.day),
+      helpText: '사귄 날짜 선택',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _selectedRelationshipStart = DateTime(
+        picked.year,
+        picked.month,
+        picked.day,
+      );
+    });
+  }
+
+  Future<void> _createInvite(DateTime relationshipStart) async {
+    setState(() => _busyCreateInvite = true);
     try {
-      await context.read<UserRepository>().ensurePersonalInviteCode(uid);
+      await context.read<CoupleRepository>().createInviteCode(
+        relationshipStart: relationshipStart,
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_messageForCreateError(e))));
     } finally {
-      if (mounted) setState(() => _busyEnsureCode = false);
+      if (mounted) setState(() => _busyCreateInvite = false);
     }
   }
 
   Future<void> _accept() async {
-    setState(() {
-      _busyConnect = true;
-      _pairingDiagnostic = null;
-    });
+    setState(() => _busyConnect = true);
     try {
       await context.read<CoupleRepository>().acceptInvite(_codeCtrl.text);
-      if (mounted) setState(() => _pairingDiagnostic = null);
     } on CoupleInviteError catch (e) {
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context)!;
-      final msg = _mapError(l10n, e);
-      setState(() => _pairingDiagnostic = '앱 검증 단계\n$msg');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
-      );
-    } on PairingStepException catch (e) {
-      if (!mounted) return;
-      final detail = '${e.step.labelKo}\n${e.cause}';
-      setState(() => _pairingDiagnostic = detail);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${e.step.labelKo}\n(자세한 내용은 화면의 진단 영역을 확인해 주세요)',
-          ),
-        ),
-      );
+      final msg = _mapError(e);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context)!;
-      final detail = '기타 오류\n$e';
-      setState(() => _pairingDiagnostic = detail);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${l10n.inviteErrorGeneric}\n$e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('연결 중 오류가 발생했습니다: $e')));
     } finally {
       if (mounted) setState(() => _busyConnect = false);
     }
   }
 
   Future<void> _share(String code) async {
-    final l10n = AppLocalizations.of(context)!;
     final link = inviteDeepLink(code);
-    final text = l10n.inviteShareText(code, link);
+    final text = 'Our Moment 초대 코드: $code\n$link';
     await Share.share(text);
   }
 
   Future<void> _logout() async {
-    if (_busyConnect || _busyEnsureCode || _busyLogout) return;
+    if (_busyConnect || _busyCreateInvite || _busyLogout) return;
     setState(() => _busyLogout = true);
     try {
       await context.read<AuthRepository>().signOut();
@@ -131,171 +137,220 @@ class _PairingScreenState extends State<PairingScreen> {
     }
   }
 
-  bool get _anyBusy =>
-      _busyConnect || _busyEnsureCode || _busyLogout;
+  bool get _anyBusy => _busyConnect || _busyCreateInvite || _busyLogout;
 
-  List<Widget> _formChildren(AppLocalizations l10n, String? uid) {
-    return [
-          Text(l10n.pairingBody, style: Theme.of(context).textTheme.bodyLarge),
-          const SizedBox(height: 8),
-          Text(
-            l10n.pairingCodeFixedHint,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+  String _formatDate(DateTime date) {
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$mm-$dd';
+  }
+
+  DateTime? _asDate(dynamic value) {
+    if (value is Timestamp) {
+      final d = value.toDate();
+      return DateTime(d.year, d.month, d.day);
+    }
+    return null;
+  }
+
+  String _messageForCreateError(Object e) {
+    if (e is CoupleInviteError) {
+      return _mapError(e);
+    }
+    return '초대 코드 생성 중 오류가 발생했습니다: $e';
+  }
+
+  Widget _soloView(Map<String, dynamic>? data) {
+    final inviteCode = data?['inviteCode'] as String?;
+    final serverRelationshipStart = _asDate(data?['relationshipStart']);
+    final effectiveRelationshipStart =
+        _selectedRelationshipStart ?? serverRelationshipStart;
+
+    return _PlainScaffold(
+      title: 'Our Moment - SOLO',
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          const Text(
+            '1) 사귄 날짜를 먼저 선택하세요.\n2) 초대 코드를 생성해 상대에게 전달하세요.\n3) 상대가 코드를 입력하면 자동으로 홈으로 이동합니다.',
+            style: TextStyle(fontSize: 16, color: Colors.black),
           ),
           const SizedBox(height: 20),
-          if (uid == null)
-            const SizedBox.shrink()
-          else
-            StreamBuilder(
-              stream: context.read<UserRepository>().watchUser(uid),
-              builder: (context, snap) {
-                if (snap.hasError) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      '${snap.error}',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  );
-                }
-                if (snap.connectionState == ConnectionState.waiting &&
-                    !snap.hasData) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                final code = snap.data?.data()?['inviteCode'] as String?;
-                if (code == null || code.isEmpty) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Icon(
-                        Icons.qr_code_2_outlined,
-                        size: 48,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        l10n.pairingInviteCodeMissingBody,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                      ),
-                      const SizedBox(height: 20),
-                      FilledButton(
-                        onPressed: _busyEnsureCode ? null : _ensureCode,
-                        child: Text(l10n.pairingCodeLoadRetry),
-                      ),
-                    ],
-                  );
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      l10n.pairingYourCode,
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    SelectableText(
-                      code,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            letterSpacing: 4,
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton.tonalIcon(
-                      onPressed: () => _share(code),
-                      icon: const Icon(Icons.share_outlined),
-                      label: Text(l10n.pairingShare),
-                    ),
-                  ],
-                );
-              },
-            ),
-          const SizedBox(height: 36),
+          const Text(
+            '사귄 날짜',
+            style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black),
+          ),
+          const SizedBox(height: 8),
           Text(
-            l10n.pairingCodeHint,
-            style: Theme.of(context).textTheme.titleMedium,
+            effectiveRelationshipStart == null
+                ? '선택되지 않음'
+                : _formatDate(effectiveRelationshipStart),
+            style: const TextStyle(fontSize: 18, color: Colors.black),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton(
+            onPressed: _busyCreateInvite ? null : _pickRelationshipStart,
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.black),
+            child: const Text('사귄 날짜 선택'),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: (_busyCreateInvite || effectiveRelationshipStart == null)
+                ? null
+                : () async {
+                    await _createInvite(effectiveRelationshipStart);
+                  },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+            ),
+            child: _busyCreateInvite
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text('초대 코드 생성 후 대기 상태로 전환'),
+          ),
+          const SizedBox(height: 24),
+          if (inviteCode != null && inviteCode.isNotEmpty) ...[
+            const Text(
+              '내 초대 코드',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Colors.black,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SelectableText(
+              inviteCode,
+              style: const TextStyle(
+                fontSize: 28,
+                letterSpacing: 4,
+                color: Colors.black,
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: () => _share(inviteCode),
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.black),
+              child: const Text('초대 링크 공유'),
+            ),
+            const SizedBox(height: 28),
+          ],
+          const Divider(color: Colors.black),
+          const SizedBox(height: 20),
+          const Text(
+            '상대가 보낸 초대 코드 입력',
+            style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _codeCtrl,
-            textCapitalization: TextCapitalization.characters,
             autocorrect: false,
-            decoration: InputDecoration(
-              hintText: l10n.pairingCodeHint,
-            ),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busyConnect ? null : _accept,
-            child: _busyConnect
-                ? const SizedBox(
-                    height: 22,
-                    width: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
-                  )
-                : Text(l10n.pairingConnect),
-          ),
-          const SizedBox(height: 28),
-          Center(
-            child: TextButton(
-              onPressed: _anyBusy ? null : _logout,
-              child: Text(l10n.settingsLogout),
-            ),
-          ),
-          if (_pairingDiagnostic != null &&
-              MediaQuery.sizeOf(context).width < 520) ...[
-            const SizedBox(height: 20),
-            _diagnosticCard(context),
-          ],
-    ];
-  }
-
-  Widget _diagnosticCard(BuildContext context) {
-    final t = _pairingDiagnostic;
-    if (t == null) return const SizedBox.shrink();
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      margin: EdgeInsets.zero,
-      color: scheme.surfaceContainerHighest.withValues(alpha: 0.65),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.bug_report_outlined, size: 18, color: scheme.primary),
-                const SizedBox(width: 8),
-                Text(
-                  '연결 시도 진단',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: scheme.onSurface,
-                      ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            SelectableText(
-              t,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 11,
-                height: 1.35,
-                color: scheme.onSurfaceVariant,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(
+              hintText: '예: ABC123',
+              enabledBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: Colors.black),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: Colors.black),
               ),
             ),
-          ],
+            style: const TextStyle(color: Colors.black),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: _busyConnect ? null : _accept,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+            ),
+            child: _busyConnect
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text('초대 코드로 연결'),
+          ),
+          const SizedBox(height: 24),
+          TextButton(
+            onPressed: _anyBusy ? null : _logout,
+            child: const Text('로그아웃', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pendingView(Map<String, dynamic>? data) {
+    final inviteCode = data?['inviteCode'] as String?;
+    final relationshipStart = _asDate(data?['relationshipStart']);
+
+    return _PlainScaffold(
+      title: 'Our Moment - PENDING',
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '상대가 초대 코드를 입력하면 자동으로 홈으로 이동합니다.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, color: Colors.black),
+              ),
+              const SizedBox(height: 20),
+              if (relationshipStart != null)
+                Text(
+                  '사귄 날짜: ${_formatDate(relationshipStart)}',
+                  style: const TextStyle(fontSize: 16, color: Colors.black),
+                ),
+              if (relationshipStart != null) const SizedBox(height: 16),
+              if (inviteCode != null && inviteCode.isNotEmpty) ...[
+                const Text(
+                  '내 초대 코드',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SelectableText(
+                  inviteCode,
+                  style: const TextStyle(
+                    fontSize: 28,
+                    letterSpacing: 4,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: () => _share(inviteCode),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.black,
+                  ),
+                  child: const Text('초대 링크 공유'),
+                ),
+                const SizedBox(height: 20),
+              ],
+              TextButton(
+                onPressed: _anyBusy ? null : _logout,
+                child: const Text(
+                  '로그아웃',
+                  style: TextStyle(color: Colors.black),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -303,45 +358,181 @@ class _PairingScreenState extends State<PairingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    final showSidePanel =
-        MediaQuery.sizeOf(context).width >= 520 && _pairingDiagnostic != null;
-    final formChildren = _formChildren(l10n, uid);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.pairingTitle),
-      ),
-      body: showSidePanel
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 11,
-                  child: ListView(
-                    padding: const EdgeInsets.all(24),
-                    children: formChildren,
-                  ),
-                ),
-                VerticalDivider(
-                  width: 1,
-                  thickness: 1,
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                ),
-                Expanded(
-                  flex: 9,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [_diagnosticCard(context)],
-                  ),
-                ),
-              ],
-            )
-          : ListView(
-              padding: const EdgeInsets.all(24),
-              children: formChildren,
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: context.read<UserRepository>().watchUser(widget.uid),
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return _PlainScaffold(
+            title: 'Our Moment',
+            body: Center(
+              child: Text(
+                '데이터를 불러오는 중 오류가 발생했습니다.\n${snap.error}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.black),
+              ),
             ),
+          );
+        }
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+          return const _PlainScaffold(
+            title: 'Our Moment',
+            body: Center(child: CircularProgressIndicator(color: Colors.black)),
+          );
+        }
+        final data = snap.data?.data();
+        final status = ((data?['status'] as String?) ?? '').toUpperCase();
+        if (status == UserRepository.statusPending ||
+            widget.mode == PairingScreenMode.pending) {
+          return _pendingView(data);
+        }
+        if (status == UserRepository.statusCoupled) {
+          return const _PlainScaffold(
+            title: 'Our Moment',
+            body: Center(child: CircularProgressIndicator(color: Colors.black)),
+          );
+        }
+        return _soloView(data);
+      },
+    );
+  }
+}
+
+class CoupledHomeScreen extends StatelessWidget {
+  const CoupledHomeScreen({
+    super.key,
+    required this.uid,
+    required this.coupleId,
+  });
+
+  final String uid;
+  final String coupleId;
+
+  String _formatDate(DateTime date) {
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$mm-$dd';
+  }
+
+  int _daysSince(DateTime from) {
+    final now = DateTime.now();
+    final start = DateTime(from.year, from.month, from.day);
+    final today = DateTime(now.year, now.month, now.day);
+    return today.difference(start).inDays + 1;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _PlainScaffold(
+      title: 'Our Moment - HOME',
+      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: context.read<CoupleRepository>().watchCouple(coupleId),
+        builder: (context, snap) {
+          if (snap.hasError) {
+            return Center(
+              child: Text(
+                '홈 데이터를 불러오는 중 오류가 발생했습니다.\n${snap.error}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.black),
+              ),
+            );
+          }
+          if (snap.connectionState == ConnectionState.waiting &&
+              !snap.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(color: Colors.black),
+            );
+          }
+          final data = snap.data?.data();
+          final relationshipStart = data?['relationshipStart'] as Timestamp?;
+          final members = List<String>.from(data?['memberIds'] as List? ?? []);
+          final dday = relationshipStart == null
+              ? null
+              : _daysSince(relationshipStart.toDate());
+
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    '연결 완료! 홈 화면입니다.',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'coupleId: $coupleId',
+                    style: const TextStyle(color: Colors.black),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '내 uid: $uid',
+                    style: const TextStyle(color: Colors.black),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '멤버 수: ${members.length}명',
+                    style: const TextStyle(color: Colors.black),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    relationshipStart == null
+                        ? '사귄 날짜: 미설정'
+                        : '사귄 날짜: ${_formatDate(relationshipStart.toDate())}',
+                    style: const TextStyle(color: Colors.black),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    dday == null ? 'D+ 계산 불가' : 'D+$dday',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  TextButton(
+                    onPressed: () => context.read<AuthRepository>().signOut(),
+                    child: const Text(
+                      '로그아웃',
+                      style: TextStyle(color: Colors.black),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PlainScaffold extends StatelessWidget {
+  const _PlainScaffold({required this.title, required this.body});
+
+  final String title;
+  final Widget body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+        title: Text(title, style: const TextStyle(color: Colors.black)),
+      ),
+      body: DefaultTextStyle(
+        style: const TextStyle(color: Colors.black),
+        child: body,
+      ),
     );
   }
 }

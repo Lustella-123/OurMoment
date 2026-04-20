@@ -47,12 +47,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _busy = true);
     try {
       await context.read<UserRepository>().uploadProfilePhoto(
-            uid,
-            Uint8List.fromList(bytes),
-          );
+        uid,
+        Uint8List.fromList(bytes),
+      );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$e')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -68,7 +70,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) FocusScope.of(context).unfocus();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$e')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -119,19 +123,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       Positioned.fill(
                         child: CircleAvatar(
-                          backgroundColor: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
                           backgroundImage:
                               photoUrl != null && photoUrl.isNotEmpty
-                                  ? NetworkImage(photoUrl)
-                                  : null,
+                              ? NetworkImage(photoUrl)
+                              : null,
                           child: photoUrl == null || photoUrl.isEmpty
                               ? Icon(
                                   Icons.person_rounded,
                                   size: 56,
-                                  color:
-                                      Theme.of(context).colorScheme.outline,
+                                  color: Theme.of(context).colorScheme.outline,
                                 )
                               : null,
                         ),
@@ -172,9 +175,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 32),
               Text(
                 l10n.profileInviteCode,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
               if (code != null && code.isNotEmpty)
@@ -182,9 +185,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: ListTile(
                     title: SelectableText(
                       code,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            letterSpacing: 3,
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.headlineSmall?.copyWith(letterSpacing: 3),
                     ),
                     trailing: IconButton(
                       icon: const Icon(Icons.copy_rounded),
@@ -199,28 +202,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 )
               else
-                OutlinedButton.icon(
-                  onPressed: _busy
-                      ? null
-                      : () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          setState(() => _busy = true);
-                          try {
-                            await context
-                                .read<UserRepository>()
-                                .ensurePersonalInviteCode(user.uid);
-                          } catch (e) {
-                            if (mounted) {
-                              messenger.showSnackBar(
-                                SnackBar(content: Text('$e')),
-                              );
-                            }
-                          } finally {
-                            if (mounted) setState(() => _busy = false);
-                          }
-                        },
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: Text(l10n.profileEnsureCode),
+                const Text(
+                  '초대 코드는 SOLO 화면에서 사귄 날짜를 선택한 뒤 생성할 수 있습니다.',
+                  style: TextStyle(color: Colors.black87),
                 ),
             ],
           );
