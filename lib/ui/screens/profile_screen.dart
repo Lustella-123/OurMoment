@@ -199,28 +199,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 )
               else
-                OutlinedButton.icon(
-                  onPressed: _busy
-                      ? null
-                      : () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          setState(() => _busy = true);
-                          try {
-                            await context
-                                .read<UserRepository>()
-                                .ensurePersonalInviteCode(user.uid);
-                          } catch (e) {
-                            if (mounted) {
-                              messenger.showSnackBar(
-                                SnackBar(content: Text('$e')),
-                              );
-                            }
-                          } finally {
-                            if (mounted) setState(() => _busy = false);
-                          }
-                        },
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: Text(l10n.profileEnsureCode),
+                const Text(
+                  '초대 코드는 SOLO 화면에서 사귄 날짜를 선택한 뒤 생성할 수 있습니다.',
+                  style: TextStyle(color: Colors.black87),
                 ),
             ],
           );
