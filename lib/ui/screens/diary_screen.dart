@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -96,7 +95,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
       setState(() => _photos.clear());
       messenger.showSnackBar(SnackBar(content: Text(l10n.diaryPostedSuccess)));
       nav.goFeed();
-      if (mounted) Navigator.of(context).pop();
+      if (context.mounted) Navigator.of(context).pop();
     } on MomentsQuotaException {
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(l10n.diaryQuotaExceeded)));
