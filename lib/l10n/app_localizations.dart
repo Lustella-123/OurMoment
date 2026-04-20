@@ -110,6 +110,12 @@ abstract class AppLocalizations {
   /// **'홈'**
   String get navHome;
 
+  /// No description provided for @navHomeScreen.
+  ///
+  /// In ko, this message translates to:
+  /// **'홈화면'**
+  String get navHomeScreen;
+
   /// No description provided for @navFeed.
   ///
   /// In ko, this message translates to:
@@ -145,6 +151,12 @@ abstract class AppLocalizations {
   /// In ko, this message translates to:
   /// **'홈'**
   String get homeTitle;
+
+  /// No description provided for @homeRecordButton.
+  ///
+  /// In ko, this message translates to:
+  /// **'오늘의 기록 남기기'**
+  String get homeRecordButton;
 
   /// No description provided for @homeTodayPhotoTitle.
   ///
@@ -859,6 +871,18 @@ abstract class AppLocalizations {
   /// In ko, this message translates to:
   /// **'올리기'**
   String get diaryPublish;
+
+  /// No description provided for @diarySave.
+  ///
+  /// In ko, this message translates to:
+  /// **'저장'**
+  String get diarySave;
+
+  /// No description provided for @diaryNoPhotosYet.
+  ///
+  /// In ko, this message translates to:
+  /// **'사진을 선택해 주세요'**
+  String get diaryNoPhotosYet;
 
   /// No description provided for @diaryPostedSuccess.
   ///

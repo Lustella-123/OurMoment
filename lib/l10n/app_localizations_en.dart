@@ -15,6 +15,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navHome => 'Home';
 
   @override
+  String get navHomeScreen => 'Home';
+
+  @override
   String get navFeed => 'Feed';
 
   @override
@@ -31,6 +34,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get homeTitle => 'Home';
+
+  @override
+  String get homeRecordButton => 'Record today';
 
   @override
   String get homeTodayPhotoTitle => 'Today\'s moment';
@@ -410,6 +416,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get diaryPublish => 'Post';
+
+  @override
+  String get diarySave => 'Save';
+
+  @override
+  String get diaryNoPhotosYet => 'Choose photos';
 
   @override
   String get diaryPostedSuccess => 'Your moment was saved.';

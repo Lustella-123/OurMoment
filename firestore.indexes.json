@@ -1,19 +1,37 @@
 {
   "indexes": [
     {
-      "collectionGroup": "moments",
+      "collectionGroup": "Moments",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "coupleId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "Moments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "coupleId", "order": "ASCENDING" },
         { "fieldPath": "authorUid", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
     },
     {
-      "collectionGroup": "moments",
+      "collectionGroup": "Moments",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "coupleId", "order": "ASCENDING" },
         { "fieldPath": "dayKey", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "Moments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "coupleId", "order": "ASCENDING" },
+        { "fieldPath": "dayKey", "order": "ASCENDING" }
       ]
     },
     {

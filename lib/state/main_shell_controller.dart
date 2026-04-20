@@ -7,11 +7,13 @@ class MainShellController extends ChangeNotifier {
   int get index => _index;
 
   void setIndex(int i) {
-    if (i < 0 || i > 4) return;
+    if (i < 0 || i > 3) return;
     if (_index == i) return;
     _index = i;
     notifyListeners();
   }
 
   void goHome() => setIndex(0);
+
+  void goFeed() => setIndex(1);
 }

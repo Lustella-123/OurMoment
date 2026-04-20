@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import '../../services/moments_repository.dart'
     show CoupleMoment, MomentsRepository;
 import '../../services/user_repository.dart';
-import '../../state/app_settings.dart';
 import '../../widgets/moment_card.dart';
 import '../../widgets/network_retry_banner.dart';
 
@@ -40,12 +39,19 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final settings = context.watch<AppSettings>();
-    final accent = settings.accentColor;
     final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.feedTitle)),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        title: Text(
+          l10n.feedTitle,
+          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+        ),
+      ),
       body: user == null
           ? const SizedBox.shrink()
           : Column(
@@ -67,7 +73,7 @@ class _FeedScreenState extends State<FeedScreen> {
                             child: Text(
                               l10n.feedConnectFirst,
                               textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodyLarge,
+                              style: const TextStyle(color: Colors.black87, fontSize: 16),
                             ),
                           ),
                         );
@@ -78,11 +84,16 @@ class _FeedScreenState extends State<FeedScreen> {
                         ),
                         builder: (context, mSnap) {
                           if (mSnap.hasError) {
-                            return Center(child: Text('${mSnap.error}'));
+                            return Center(
+                              child: Text(
+                                '${mSnap.error}',
+                                style: const TextStyle(color: Colors.black87),
+                              ),
+                            );
                           }
                           if (!mSnap.hasData) {
                             return const Center(
-                              child: CircularProgressIndicator(),
+                              child: CircularProgressIndicator(color: Colors.black54),
                             );
                           }
                           final list = mSnap.data!;
@@ -93,34 +104,24 @@ class _FeedScreenState extends State<FeedScreen> {
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(
-                                      Icons.dynamic_feed_rounded,
-                                      size: 56,
-                                      color: accent,
-                                    ),
-                                    const SizedBox(height: 20),
                                     Text(
                                       l10n.feedEmptyTitle,
                                       textAlign: TextAlign.center,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                          ),
+                                      style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.black,
+                                      ),
                                     ),
                                     const SizedBox(height: 12),
                                     Text(
                                       l10n.feedEmptyBody,
                                       textAlign: TextAlign.center,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onSurfaceVariant,
-                                          ),
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.black54,
+                                        height: 1.4,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -128,18 +129,15 @@ class _FeedScreenState extends State<FeedScreen> {
                             );
                           }
                           return RefreshIndicator(
+                            color: Colors.black,
                             onRefresh: () => _refreshMoments(coupleId),
                             child: ListView.builder(
-                              padding: const EdgeInsets.only(
-                                top: 12,
-                                bottom: 24,
-                              ),
+                              padding: const EdgeInsets.only(top: 12, bottom: 24),
                               itemCount: list.length,
                               itemBuilder: (context, i) {
                                 return MomentCard(
                                   coupleId: coupleId,
                                   moment: list[i],
-                                  accent: accent,
                                 );
                               },
                             ),

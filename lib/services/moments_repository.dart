@@ -21,6 +21,7 @@ class CoupleMoment {
     required this.caption,
     required this.createdAt,
     required this.dayKey,
+    this.coupleId = '',
     this.imageUrls = const [],
     this.likeCount = 0,
   });
@@ -30,6 +31,8 @@ class CoupleMoment {
   final String caption;
   final DateTime createdAt;
   final String dayKey;
+  /// Firestore 루트 `Moments`에 저장된 커플 ID (하위 경로가 아닐 때 조회용).
+  final String coupleId;
   final List<String> imageUrls;
   final int likeCount;
 
@@ -64,6 +67,7 @@ class CoupleMoment {
       dayKey: m['dayKey'] as String? ?? '',
       imageUrls: urls,
       likeCount: (m['likeCount'] as num?)?.toInt() ?? 0,
+      coupleId: m['coupleId'] as String? ?? '',
     );
   }
 }
@@ -115,8 +119,9 @@ class MomentsRepository {
   final FirebaseAuth _auth;
   final FirebaseStorage _storage;
 
-  CollectionReference<Map<String, dynamic>> momentsCol(String coupleId) =>
-      _db.collection('couples').doc(coupleId).collection('moments');
+  /// 루트 `Moments` 컬렉션 — 문서에 `coupleId`로 커플을 구분합니다.
+  CollectionReference<Map<String, dynamic>> get _momentsRoot =>
+      _db.collection('Moments');
 
   String _dayKey(DateTime local) => DateFormat(
     'yyyy-MM-dd',
@@ -140,7 +145,8 @@ class MomentsRepository {
   }
 
   Stream<List<CoupleMoment>> watchMoments(String coupleId, {int limit = 80}) {
-    return momentsCol(coupleId)
+    return _momentsRoot
+        .where('coupleId', isEqualTo: coupleId)
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
@@ -149,7 +155,8 @@ class MomentsRepository {
 
   Future<void> refreshMoments(String coupleId, {int limit = 80}) async {
     try {
-      await momentsCol(coupleId)
+      await _momentsRoot
+          .where('coupleId', isEqualTo: coupleId)
           .orderBy('createdAt', descending: true)
           .limit(limit)
           .get(const GetOptions(source: Source.server))
@@ -157,7 +164,8 @@ class MomentsRepository {
     } on FirebaseException catch (e) {
       // 오프라인에서는 캐시를 우선 사용하고, UI에서 재시도 선택지를 보여준다.
       if (e.code != 'unavailable') rethrow;
-      await momentsCol(coupleId)
+      await _momentsRoot
+          .where('coupleId', isEqualTo: coupleId)
           .orderBy('createdAt', descending: true)
           .limit(limit)
           .get()
@@ -173,7 +181,8 @@ class MomentsRepository {
     if (isPremium) return;
     final now = DateTime.now();
     final start = DateTime(now.year, now.month, 1);
-    final q = await momentsCol(coupleId)
+    final q = await _momentsRoot
+        .where('coupleId', isEqualTo: coupleId)
         .where('authorUid', isEqualTo: authorUid)
         .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
         .count()
@@ -211,7 +220,7 @@ class MomentsRepository {
 
     await _assertMonthlyQuota(coupleId, user.uid, isPremium);
 
-    final docRef = momentsCol(coupleId).doc();
+    final docRef = _momentsRoot.doc();
     final momentId = docRef.id;
     final now = DateTime.now();
     final day = _dayKey(now);
@@ -224,7 +233,7 @@ class MomentsRepository {
         if (urls.length >= kMaxPhotosPerMoment) break;
         final compressed = await compressForUpload(raw);
         final ref = _storage.ref(
-          'couples/$coupleId/moments/$momentId/img_$i.jpg',
+          'Moments/$coupleId/$momentId/img_$i.jpg',
         );
         await ref
             .putData(compressed, SettableMetadata(contentType: 'image/jpeg'))
@@ -238,6 +247,7 @@ class MomentsRepository {
 
     await docRef
         .set({
+          'coupleId': coupleId,
           'authorUid': user.uid,
           'caption': caption.trim(),
           'createdAt': FieldValue.serverTimestamp(),
@@ -257,16 +267,19 @@ class MomentsRepository {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
 
-    final likeRef = momentsCol(
-      coupleId,
-    ).doc(momentId).collection('likes').doc(uid);
-    final momentRef = momentsCol(coupleId).doc(momentId);
+    final likeRef = _momentsRoot
+        .doc(momentId)
+        .collection('likes')
+        .doc(uid);
+    final momentRef = _momentsRoot.doc(momentId);
 
     var didAdd = false;
     await _db.runTransaction((txn) async {
       final likeSnap = await txn.get(likeRef);
       final mSnap = await txn.get(momentRef);
       if (!mSnap.exists) return;
+      final docCoupleId = mSnap.data()?['coupleId'] as String?;
+      if (docCoupleId == null || docCoupleId != coupleId) return;
       final count = (mSnap.data()?['likeCount'] as num?)?.toInt() ?? 0;
       if (likeSnap.exists) {
         txn.delete(likeRef);
@@ -292,9 +305,11 @@ class MomentsRepository {
   Future<bool> userHasLiked(String coupleId, String momentId) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return false;
-    final snap = await momentsCol(
-      coupleId,
-    ).doc(momentId).collection('likes').doc(uid).get();
+    final snap = await _momentsRoot
+        .doc(momentId)
+        .collection('likes')
+        .doc(uid)
+        .get();
     return snap.exists;
   }
 
@@ -303,7 +318,7 @@ class MomentsRepository {
     if (uid == null) {
       return Stream.value(false);
     }
-    return momentsCol(coupleId)
+    return _momentsRoot
         .doc(momentId)
         .collection('likes')
         .doc(uid)
@@ -312,7 +327,7 @@ class MomentsRepository {
   }
 
   Stream<List<MomentComment>> watchComments(String coupleId, String momentId) {
-    return momentsCol(coupleId)
+    return _momentsRoot
         .doc(momentId)
         .collection('comments')
         .orderBy('createdAt', descending: false)
@@ -326,7 +341,7 @@ class MomentsRepository {
     if (user == null) return;
     final t = text.trim();
     if (t.isEmpty) return;
-    await momentsCol(coupleId).doc(momentId).collection('comments').add({
+    await _momentsRoot.doc(momentId).collection('comments').add({
       'authorUid': user.uid,
       'text': t.length > 2000 ? t.substring(0, 2000) : t,
       'createdAt': FieldValue.serverTimestamp(),
@@ -339,9 +354,11 @@ class MomentsRepository {
     String momentId,
     String commentId,
   ) async {
-    await momentsCol(
-      coupleId,
-    ).doc(momentId).collection('comments').doc(commentId).delete();
+    await _momentsRoot
+        .doc(momentId)
+        .collection('comments')
+        .doc(commentId)
+        .delete();
   }
 
   Future<List<CoupleMoment>> loadMomentsForDay(
@@ -349,7 +366,8 @@ class MomentsRepository {
     DateTime day,
   ) async {
     final key = _dayKey(day);
-    final snap = await momentsCol(coupleId)
+    final snap = await _momentsRoot
+        .where('coupleId', isEqualTo: coupleId)
         .where('dayKey', isEqualTo: key)
         .orderBy('createdAt', descending: true)
         .get();
@@ -364,7 +382,8 @@ class MomentsRepository {
     final last = DateTime(month.year, month.month + 1, 0);
     final from = _dayKey(first);
     final to = _dayKey(last);
-    final snap = await momentsCol(coupleId)
+    final snap = await _momentsRoot
+        .where('coupleId', isEqualTo: coupleId)
         .where('dayKey', isGreaterThanOrEqualTo: from)
         .where('dayKey', isLessThanOrEqualTo: to)
         .get();
@@ -393,7 +412,8 @@ class MomentsRepository {
     final last = DateTime(month.year, month.month + 1, 0);
     final from = _dayKey(first);
     final to = _dayKey(last);
-    final snap = await momentsCol(coupleId)
+    final snap = await _momentsRoot
+        .where('coupleId', isEqualTo: coupleId)
         .where('dayKey', isGreaterThanOrEqualTo: from)
         .where('dayKey', isLessThanOrEqualTo: to)
         .get();
@@ -422,7 +442,7 @@ class MomentsRepository {
         debugPrint('Storage delete: $e');
       }
     }
-    final momentRef = momentsCol(coupleId).doc(m.id);
+    final momentRef = _momentsRoot.doc(m.id);
     final likes = await momentRef.collection('likes').get();
     final comments = await momentRef.collection('comments').get();
     final batch = _db.batch();

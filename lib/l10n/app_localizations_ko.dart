@@ -15,6 +15,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get navHome => '홈';
 
   @override
+  String get navHomeScreen => '홈화면';
+
+  @override
   String get navFeed => '피드';
 
   @override
@@ -31,6 +34,9 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get homeTitle => '홈';
+
+  @override
+  String get homeRecordButton => '오늘의 기록 남기기';
 
   @override
   String get homeTodayPhotoTitle => '오늘의 순간 올리기';
@@ -401,6 +407,12 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get diaryPublish => '올리기';
+
+  @override
+  String get diarySave => '저장';
+
+  @override
+  String get diaryNoPhotosYet => '사진을 선택해 주세요';
 
   @override
   String get diaryPostedSuccess => '순간을 남겼어요.';
