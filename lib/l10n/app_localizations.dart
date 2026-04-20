@@ -206,6 +206,27 @@ abstract class AppLocalizations {
   /// **'달력'**
   String get calendarTitle;
 
+  /// No description provided for @calendarLoadError.
+  String get calendarLoadError;
+
+  /// No description provided for @calendarRetry.
+  String get calendarRetry;
+
+  /// No description provided for @calendarAnniversaryFirstYear.
+  String get calendarAnniversaryFirstYear;
+
+  /// No description provided for @calendarAnniversaryYear.
+  String calendarAnniversaryYear(int years);
+
+  /// No description provided for @calendarAnniversaryHundredDays.
+  String calendarAnniversaryHundredDays(int days);
+
+  /// No description provided for @calendarBirthdayMine.
+  String get calendarBirthdayMine;
+
+  /// No description provided for @calendarBirthdayPartner.
+  String get calendarBirthdayPartner;
+
   /// No description provided for @calendarLegendMine.
   ///
   /// In ko, this message translates to:
@@ -295,6 +316,15 @@ abstract class AppLocalizations {
   /// In ko, this message translates to:
   /// **'언어'**
   String get settingsLanguage;
+
+  /// No description provided for @settingsCalendarDisplay.
+  String get settingsCalendarDisplay;
+
+  /// No description provided for @settingsCalendarShowAnniversaries.
+  String get settingsCalendarShowAnniversaries;
+
+  /// No description provided for @settingsCalendarShowBirthdays.
+  String get settingsCalendarShowBirthdays;
 
   /// No description provided for @settingsLanguageKo.
   ///

@@ -18,6 +18,30 @@
   "feedTitle": "피드",
   "diaryTitle": "일기",
   "calendarTitle": "달력",
+  "calendarLoadError": "달력을 불러오지 못했어요.",
+  "calendarRetry": "재시도",
+  "calendarAnniversaryFirstYear": "1주년",
+  "calendarAnniversaryYear": "{years}주년",
+  "@calendarAnniversaryYear": {
+    "placeholders": {
+      "years": {
+        "type": "int"
+      }
+    }
+  },
+  "calendarAnniversaryHundredDays": "{days}일",
+  "@calendarAnniversaryHundredDays": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "calendarBirthdayMine": "내 생일",
+  "calendarBirthdayPartner": "상대 생일",
+  "settingsCalendarDisplay": "달력 표시",
+  "settingsCalendarShowAnniversaries": "연애 기념일 표시",
+  "settingsCalendarShowBirthdays": "생일 표시",
   "calendarLegendMine": "내 일정",
   "calendarLegendPartner": "상대 일정",
   "calendarAddSchedule": "일정 추가",

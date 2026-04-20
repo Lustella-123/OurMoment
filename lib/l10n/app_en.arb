@@ -18,6 +18,30 @@
   "feedTitle": "Feed",
   "diaryTitle": "Diary",
   "calendarTitle": "Calendar",
+  "calendarLoadError": "Could not load the calendar.",
+  "calendarRetry": "Retry",
+  "calendarAnniversaryFirstYear": "1st anniversary",
+  "calendarAnniversaryYear": "{years} years",
+  "@calendarAnniversaryYear": {
+    "placeholders": {
+      "years": {
+        "type": "int"
+      }
+    }
+  },
+  "calendarAnniversaryHundredDays": "{days} days",
+  "@calendarAnniversaryHundredDays": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "calendarBirthdayMine": "My birthday",
+  "calendarBirthdayPartner": "Partner birthday",
+  "settingsCalendarDisplay": "Calendar display",
+  "settingsCalendarShowAnniversaries": "Show relationship anniversaries",
+  "settingsCalendarShowBirthdays": "Show birthdays",
   "calendarLegendMine": "Mine",
   "calendarLegendPartner": "Partner",
   "calendarAddSchedule": "Add schedule",

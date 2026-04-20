@@ -63,6 +63,31 @@ class AppLocalizationsKo extends AppLocalizations {
   String get calendarTitle => '달력';
 
   @override
+  String get calendarLoadError => '달력을 불러오지 못했어요.';
+
+  @override
+  String get calendarRetry => '재시도';
+
+  @override
+  String get calendarAnniversaryFirstYear => '1주년';
+
+  @override
+  String calendarAnniversaryYear(int years) {
+    return '$years주년';
+  }
+
+  @override
+  String calendarAnniversaryHundredDays(int days) {
+    return '${days}일';
+  }
+
+  @override
+  String get calendarBirthdayMine => '내 생일';
+
+  @override
+  String get calendarBirthdayPartner => '상대 생일';
+
+  @override
   String get calendarLegendMine => '내 일정';
 
   @override
@@ -106,6 +131,15 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get settingsLanguage => '언어';
+
+  @override
+  String get settingsCalendarDisplay => '달력 표시';
+
+  @override
+  String get settingsCalendarShowAnniversaries => '연애 기념일 표시';
+
+  @override
+  String get settingsCalendarShowBirthdays => '생일 표시';
 
   @override
   String get settingsLanguageKo => '한국어';
