@@ -72,15 +72,24 @@ class CoupleRepository {
       throw CoupleInviteError.invalidCode;
     }
 
-    DocumentSnapshot<Map<String, dynamic>> codeSnap;
+    String? creatorUid;
     try {
-      codeSnap = await _db.collection('inviteCodes').doc(code).get();
+      final codeSnap = await _db.collection('inviteCodes').doc(code).get();
+      if (codeSnap.exists) {
+        creatorUid = codeSnap.data()?['uid'] as String?;
+      }
+    } on FirebaseException catch (e) {
+      // inviteCodes 규칙 미배포/권한 거부 시 users 기반 폴백으로 진행
+      if (e.code != 'permission-denied' && e.code != 'failed-precondition') {
+        _failAtStep(e, PairingStep.readInviteCodeDoc);
+      }
     } catch (e) {
       _failAtStep(e, PairingStep.readInviteCodeDoc);
     }
-    if (!codeSnap.exists) throw CoupleInviteError.invalidCode;
-
-    final creatorUid = codeSnap.data()!['uid'] as String;
+    creatorUid ??= await _findCreatorUidByCodeInUsers(code);
+    if (creatorUid == null || creatorUid.isEmpty) {
+      throw CoupleInviteError.invalidCode;
+    }
     if (creatorUid == uid) throw CoupleInviteError.cannotInviteSelf;
 
     DocumentSnapshot<Map<String, dynamic>> creatorUserSnap;
@@ -196,6 +205,16 @@ class CoupleRepository {
         _failAtStep(e, PairingStep.joinerSetCoupleId);
       }
     }
+  }
+
+  Future<String?> _findCreatorUidByCodeInUsers(String code) async {
+    final q = await _db
+        .collection('users')
+        .where('inviteCode', isEqualTo: code)
+        .limit(1)
+        .get();
+    if (q.docs.isEmpty) return null;
+    return q.docs.first.id;
   }
 
   /// 연애 시작일·결혼 기념일 (커플 멤버만)

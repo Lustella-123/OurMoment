@@ -70,10 +70,34 @@ class UserRepository {
       } on _InviteCodeTaken {
         continue;
       } on FirebaseException catch (e) {
-        // 권한 거부 등은 48번 재시도해도 소용없음
+        // 규칙 미배포 등으로 inviteCodes 컬렉션 접근이 막혀도
+        // users/{uid}.inviteCode 기반 폴백으로 연결 흐름을 유지합니다.
+        if (e.code == 'permission-denied' || e.code == 'failed-precondition') {
+          await _ensureCodeUsersOnly(uid, userRef);
+          return;
+        }
+        // 그 외 오류는 상위에서 안내
         debugPrint('inviteCodes transaction: ${e.code} ${e.message}');
         rethrow;
       }
+    }
+    throw StateError('invite_code_allocation_failed');
+  }
+
+  Future<void> _ensureCodeUsersOnly(
+    String uid,
+    DocumentReference<Map<String, dynamic>> userRef,
+  ) async {
+    for (var attempt = 0; attempt < 48; attempt++) {
+      final code = _randomInviteCode();
+      final dup = await _db
+          .collection('users')
+          .where('inviteCode', isEqualTo: code)
+          .limit(1)
+          .get();
+      if (dup.docs.isNotEmpty) continue;
+      await userRef.set({'inviteCode': code}, SetOptions(merge: true));
+      return;
     }
     throw StateError('invite_code_allocation_failed');
   }
