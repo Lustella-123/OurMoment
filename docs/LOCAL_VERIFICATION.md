@@ -59,6 +59,7 @@
 - Xcode + CocoaPods (`cd ios && pod install`)
 - Apple 개발자 계정으로 Signing 설정
 - `flutter doctor`에서 Xcode가 ✓인지 확인
+- **시뮬레이터 + 핫 리로드(실시간 반영)** 상세: **[IOS_XCODE_SIMULATOR.md](./IOS_XCODE_SIMULATOR.md)**
 
 ---
 
