@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../services/auth_repository.dart';
 import '../services/user_repository.dart';
 import '../ui/auth/login_screen.dart';
+import '../ui/auth/verify_email_screen.dart';
 import '../ui/pairing/pairing_screen.dart';
 import '../ui/screens/home_screen.dart';
 
@@ -24,6 +25,9 @@ class AuthWrapper extends StatelessWidget {
         final user = snap.data;
         if (user == null) {
           return const LoginScreen();
+        }
+        if (authRepo.needsEmailVerification(user)) {
+          return VerifyEmailScreen(user: user);
         }
         return _UserStatusGate(user: user);
       },

@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -12,6 +13,7 @@ import 'firebase_options.dart';
 import 'services/auth_repository.dart';
 import 'services/calendar_events_repository.dart';
 import 'services/couple_repository.dart';
+import 'services/kakao_auth_repository.dart';
 import 'services/moments_repository.dart';
 import 'services/todos_repository.dart';
 import 'services/user_repository.dart';
@@ -22,6 +24,9 @@ import 'ui/splash/app_startup_splash.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  KakaoSdk.init(
+    nativeAppKey: const String.fromEnvironment('KAKAO_NATIVE_APP_KEY'),
+  );
   String? bootstrapError;
   try {
     await Firebase.initializeApp(
@@ -95,6 +100,7 @@ class _BootstrapRootState extends State<_BootstrapRoot> {
             Provider(create: (_) => AuthRepository()),
             Provider(create: (_) => UserRepository()),
             Provider(create: (_) => CoupleRepository()),
+            Provider(create: (_) => KakaoAuthRepository()),
             Provider(create: (_) => MomentsRepository()),
             Provider(create: (_) => CalendarEventsRepository()),
             Provider(create: (_) => TodosRepository()),
