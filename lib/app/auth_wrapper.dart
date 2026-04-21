@@ -1,264 +1,160 @@
-import 'dart:async';
-
-import 'package:app_links/app_links.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:ourmoment/l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 
 import '../services/auth_repository.dart';
-import '../services/invite_deep_link.dart';
 import '../services/user_repository.dart';
-import '../state/app_settings.dart';
 import '../ui/auth/login_screen.dart';
-import '../ui/auth/verify_email_screen.dart';
 import '../ui/pairing/pairing_screen.dart';
-import '../ui/shell/main_shell.dart';
-import '../ui/splash/our_moment_splash_layout.dart';
+import '../ui/screens/home_screen.dart';
 
-class AuthWrapper extends StatefulWidget {
+class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
-
-  @override
-  State<AuthWrapper> createState() => _AuthWrapperState();
-}
-
-class _AuthWrapperState extends State<AuthWrapper> {
-  late final AppLinks _appLinks;
-  // dispose에서 cancel — cancel_subscriptions는 StatefulWidget 필드 패턴을 추적하지 못함.
-  // ignore: cancel_subscriptions
-  StreamSubscription<Uri>? _linkSub;
-  String? _pendingInviteCode;
-
-  @override
-  void initState() {
-    super.initState();
-    _appLinks = AppLinks();
-    unawaited(_listenDeepLinks());
-  }
-
-  Future<void> _listenDeepLinks() async {
-    try {
-      final initial = await _appLinks.getInitialLink();
-      final c = parseInviteCodeFromUri(initial);
-      if (c != null && mounted) setState(() => _pendingInviteCode = c);
-    } catch (e) {
-      debugPrint('getInitialLink failed: $e');
-    }
-
-    _linkSub = _appLinks.uriLinkStream.listen((uri) {
-      final c = parseInviteCodeFromUri(uri);
-      if (c != null && mounted) setState(() => _pendingInviteCode = c);
-    });
-  }
-
-  @override
-  void dispose() {
-    final sub = _linkSub;
-    if (sub != null) unawaited(sub.cancel());
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     final authRepo = context.read<AuthRepository>();
-
     return StreamBuilder<User?>(
       stream: authRepo.userChanges(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
-          return const _SplashScaffold();
+          return const _SimpleCenterText(text: '로딩 중...');
         }
-
-        final user = snap.data ?? FirebaseAuth.instance.currentUser;
+        final user = snap.data;
         if (user == null) {
           return const LoginScreen();
         }
-
-        if (authRepo.needsEmailVerification(user)) {
-          return VerifyEmailScreen(user: user);
-        }
-
-        return _ProfileBootstrap(
-          user: user,
-          pendingInviteCode: _pendingInviteCode,
-        );
+        return _UserStatusGate(user: user);
       },
     );
   }
 }
 
-class _ProfileBootstrap extends StatefulWidget {
-  const _ProfileBootstrap({required this.user, this.pendingInviteCode});
+class _UserStatusGate extends StatelessWidget {
+  const _UserStatusGate({required this.user});
 
   final User user;
-  final String? pendingInviteCode;
-
-  @override
-  State<_ProfileBootstrap> createState() => _ProfileBootstrapState();
-}
-
-class _ProfileBootstrapState extends State<_ProfileBootstrap> {
-  late Future<void> _future;
-  bool _profileLoadStarted = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_profileLoadStarted) return;
-    _profileLoadStarted = true;
-    _future = context.read<UserRepository>().ensureUserProfile(widget.user);
-  }
-
-  void _retry() {
-    setState(() {
-      _future = context.read<UserRepository>().ensureUserProfile(widget.user);
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
+    final userRepo = context.read<UserRepository>();
     return FutureBuilder<void>(
-      future: _future,
-      builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return const _SplashScaffold();
+      future: userRepo.ensureUserProfile(user),
+      builder: (context, initSnap) {
+        if (initSnap.connectionState != ConnectionState.done) {
+          return const _SimpleCenterText(text: '프로필 준비 중...');
         }
-        if (snap.hasError) {
-          return _BootstrapErrorScreen(
-            title: l10n.errorProfileLoadTitle,
-            message: _friendlyError(context, snap.error),
-            onRetry: _retry,
-          );
-        }
-        return _CoupleGate(
-          uid: widget.user.uid,
-          pendingInviteCode: widget.pendingInviteCode,
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: userRepo.watchUser(user.uid),
+          builder: (context, userSnap) {
+            if (userSnap.connectionState == ConnectionState.waiting &&
+                !userSnap.hasData) {
+              return const _SimpleCenterText(text: '상태 동기화 중...');
+            }
+            final status =
+                (userSnap.data?.data()?['status'] as String?) ?? 'SOLO';
+            if (status == 'SOLO') {
+              return const PairingScreen();
+            }
+            if (status == 'PENDING') {
+              return const PendingScreen();
+            }
+            if (status == 'COUPLED') {
+              return const HomeScreen();
+            }
+            return const _SimpleCenterText(text: '알 수 없는 상태');
+          },
         );
       },
     );
   }
 }
 
-String _friendlyError(BuildContext context, Object? error) {
-  if (error == null) return '알 수 없는 오류';
-  if (error is FirebaseException) {
-    switch (error.code) {
-      case 'permission-denied':
-        return 'Firestore 규칙을 확인해 주세요. (permission-denied)';
-      case 'unavailable':
-        return '네트워크를 확인한 뒤 다시 시도해 주세요.';
-      default:
-        return error.message ?? error.code;
+class PendingScreen extends StatelessWidget {
+  const PendingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      return const LoginScreen();
     }
-  }
-  return error.toString();
-}
-
-class _BootstrapErrorScreen extends StatelessWidget {
-  const _BootstrapErrorScreen({
-    required this.title,
-    required this.message,
-    required this.onRetry,
-  });
-
-  final String title;
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Spacer(),
-              Icon(
-                Icons.cloud_off_outlined,
-                size: 56,
-                color: Theme.of(context).colorScheme.error,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const Spacer(),
-              FilledButton(onPressed: onRetry, child: Text(l10n.commonRetry)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CoupleGate extends StatefulWidget {
-  const _CoupleGate({required this.uid, this.pendingInviteCode});
-
-  final String uid;
-  final String? pendingInviteCode;
-
-  @override
-  State<_CoupleGate> createState() => _CoupleGateState();
-}
-
-class _CoupleGateState extends State<_CoupleGate> {
-  int _streamRetry = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      key: ValueKey(_streamRetry),
-      stream: context.read<UserRepository>().watchUser(widget.uid),
+      stream: context.read<UserRepository>().watchUser(currentUser.uid),
       builder: (context, snap) {
-        if (snap.hasError) {
-          return _BootstrapErrorScreen(
-            title: l10n.errorFirestoreTitle,
-            message: _friendlyError(context, snap.error ?? 'unknown'),
-            onRetry: () => setState(() => _streamRetry++),
-          );
-        }
         if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
-          return const _SplashScaffold();
+          return const _SimpleCenterText(text: '초대 상태 확인 중...');
         }
-        if (!snap.hasData) {
-          return const _SplashScaffold();
-        }
-        final coupleId = snap.data?.data()?['coupleId'] as String?;
-        if (coupleId == null || coupleId.isEmpty) {
-          return PairingScreen(initialInviteCode: widget.pendingInviteCode);
-        }
-        return const MainShell();
+        final data = snap.data?.data() ?? const <String, dynamic>{};
+        final inviteCode = (data['inviteCode'] as String?) ?? '-';
+        return Scaffold(
+          backgroundColor: Colors.white,
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    '대기 중',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '상대가 초대 코드를 입력하면 자동으로 홈 화면으로 이동합니다.',
+                    style: TextStyle(color: Colors.black, fontSize: 16),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    '내 초대 코드: $inviteCode',
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 22,
+                      letterSpacing: 2,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  OutlinedButton(
+                    onPressed: () async {
+                      await context.read<AuthRepository>().signOut();
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.black,
+                      side: const BorderSide(color: Colors.black),
+                    ),
+                    child: const Text('로그아웃'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
       },
     );
   }
 }
 
-class _SplashScaffold extends StatelessWidget {
-  const _SplashScaffold();
+class _SimpleCenterText extends StatelessWidget {
+  const _SimpleCenterText({required this.text});
+
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<AppSettings>();
     return Scaffold(
-      body: OurMomentSplashLayout(palette: settings.themePalette),
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Text(
+          text,
+          style: const TextStyle(color: Colors.black, fontSize: 18),
+        ),
+      ),
     );
   }
 }

@@ -1,245 +1,164 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'user_repository.dart';
 
-/// 연결 실패 시 **어느 단계**에서 막혔는지 표시용 (UI·로그)
-enum PairingStep {
-  readInviteCodeDoc('① inviteCodes/{코드} 읽기'),
-  readCreatorUser('② 상대 users/{uid} 읽기'),
-  repairReadCouple('③ 복구: couples/{id} 읽기'),
-  repairReadJoiner('④ 복구: 내 users 읽기'),
-  repairUpdateJoiner('⑤ 복구: 내 users에 coupleId 쓰기'),
-  transaction('⑥ 트랜잭션 (커플 문서·상대 users 갱신)'),
-  joinerSetCoupleId('⑦ 트랜잭션 후: 내 users에 coupleId 쓰기');
-
-  const PairingStep(this.labelKo);
-  final String labelKo;
-}
-
-/// [step]에서 실패했을 때 [cause]를 감쌉니다.
-class PairingStepException implements Exception {
-  PairingStepException(this.step, this.cause);
-
-  final PairingStep step;
-  final Object cause;
-
-  @override
-  String toString() => '${step.labelKo}\n$cause';
-}
-
 enum CoupleInviteError {
   invalidCode,
   cannotInviteSelf,
-  alreadyInCouple,
-  coupleFull,
-  inviteeAlreadyPaired,
+  alreadyCoupled,
+  partnerNotPending,
+  relationshipStartRequired,
   notAuthenticated,
 }
 
 class CoupleRepository {
   CoupleRepository({FirebaseFirestore? firestore, FirebaseAuth? auth})
-    : _db = firestore ?? FirebaseFirestore.instance,
-      _auth = auth ?? FirebaseAuth.instance;
+      : _db = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _db;
   final FirebaseAuth _auth;
-
-  DocumentReference<Map<String, dynamic>> coupleRef(String coupleId) =>
-      _db.collection('couples').doc(coupleId);
+  static const _inviteChars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 
   Stream<DocumentSnapshot<Map<String, dynamic>>> watchCouple(String coupleId) =>
-      coupleRef(coupleId).snapshots();
+      _db.collection('couples').doc(coupleId).snapshots();
 
-  /// catch 블록에서만 호출. `rethrow`는 헬퍼 안에서 쓸 수 없어 `throw e`로 전달합니다.
-  Never _failAtStep(Object e, PairingStep step) {
-    if (e is CoupleInviteError) throw e;
-    if (e is PairingStepException) throw e;
-    throw PairingStepException(step, e);
+  Future<String> createInviteCode({
+    required DateTime relationshipStartDate,
+  }) async {
+    final me = _auth.currentUser;
+    if (me == null) throw CoupleInviteError.notAuthenticated;
+    final uid = me.uid;
+    final todayOnly = DateTime(
+      relationshipStartDate.year,
+      relationshipStartDate.month,
+      relationshipStartDate.day,
+    );
+
+    for (var i = 0; i < 30; i++) {
+      final code = _randomInviteCode();
+      final inviteRef = _db.collection('inviteCodes').doc(code);
+      final userRef = _db.collection('users').doc(uid);
+      try {
+        await _db.runTransaction((txn) async {
+          final userSnap = await txn.get(userRef);
+          final status = (userSnap.data()?['status'] as String?) ?? 'SOLO';
+          if (status == 'COUPLED') throw CoupleInviteError.alreadyCoupled;
+
+          final inviteSnap = await txn.get(inviteRef);
+          if (inviteSnap.exists) {
+            throw StateError('collision');
+          }
+
+          txn.set(inviteRef, {
+            'creatorUid': uid,
+            'relationshipStartDate': Timestamp.fromDate(todayOnly),
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          txn.set(userRef, {
+            'status': 'PENDING',
+            'inviteCode': code,
+            'pendingPartnerUid': null,
+            'relationshipStartDate': Timestamp.fromDate(todayOnly),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        });
+        return code;
+      } on StateError {
+        continue;
+      }
+    }
+    throw StateError('invite_code_generation_failed');
   }
 
-  /// 상대의 **고정 inviteCode**로 연결. `inviteCodes/{code}` → 작성자 uid 조회.
-  Future<void> acceptInvite(String rawCode) async {
-    final user = _auth.currentUser;
-    if (user == null) throw CoupleInviteError.notAuthenticated;
+  Future<void> cancelPendingInvite() async {
+    final me = _auth.currentUser;
+    if (me == null) throw CoupleInviteError.notAuthenticated;
+    final userRef = _db.collection('users').doc(me.uid);
+    final userSnap = await userRef.get();
+    final inviteCode = userSnap.data()?['inviteCode'] as String?;
+    if (inviteCode != null && inviteCode.isNotEmpty) {
+      await _db.collection('inviteCodes').doc(inviteCode).delete();
+    }
+    await userRef.set({
+      'status': 'SOLO',
+      'inviteCode': null,
+      'pendingPartnerUid': null,
+      'relationshipStartDate': null,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 
-    final uid = user.uid;
+  Future<void> acceptInvite(String rawCode) async {
+    final me = _auth.currentUser;
+    if (me == null) throw CoupleInviteError.notAuthenticated;
+    final myUid = me.uid;
     final code = rawCode.trim().toUpperCase();
     if (code.length != UserRepository.inviteCodeLength) {
       throw CoupleInviteError.invalidCode;
     }
 
-    DocumentSnapshot<Map<String, dynamic>> codeSnap;
-    try {
-      codeSnap = await _db.collection('inviteCodes').doc(code).get();
-    } catch (e) {
-      _failAtStep(e, PairingStep.readInviteCodeDoc);
-    }
-    if (!codeSnap.exists) throw CoupleInviteError.invalidCode;
+    final myRef = _db.collection('users').doc(myUid);
+    final inviteRef = _db.collection('inviteCodes').doc(code);
 
-    final creatorUid = codeSnap.data()!['uid'] as String;
-    if (creatorUid == uid) throw CoupleInviteError.cannotInviteSelf;
+    await _db.runTransaction((txn) async {
+      final mySnap = await txn.get(myRef);
+      final myStatus = (mySnap.data()?['status'] as String?) ?? 'SOLO';
+      if (myStatus == 'COUPLED') throw CoupleInviteError.alreadyCoupled;
 
-    DocumentSnapshot<Map<String, dynamic>> creatorUserSnap;
-    try {
-      creatorUserSnap = await _db.collection('users').doc(creatorUid).get();
-    } catch (e) {
-      _failAtStep(e, PairingStep.readCreatorUser);
-    }
-    final onUser = creatorUserSnap.data()?['inviteCode'] as String?;
-    if (onUser == null || onUser.toUpperCase() != code) {
-      throw CoupleInviteError.invalidCode;
-    }
+      final inviteSnap = await txn.get(inviteRef);
+      if (!inviteSnap.exists) throw CoupleInviteError.invalidCode;
 
-    final joinerRef = _db.collection('users').doc(uid);
-
-    // 이전 시도에서 couples만 반영되고 users.coupleId 쓰기가 실패한 경우 — 재시도 시 coupleFull에 걸리지 않게 복구
-    final existingCreatorCoupleId =
-        creatorUserSnap.data()?['coupleId'] as String?;
-    if (existingCreatorCoupleId != null) {
-      DocumentSnapshot<Map<String, dynamic>> preCouple;
-      try {
-        preCouple =
-            await _db.collection('couples').doc(existingCreatorCoupleId).get();
-      } catch (e) {
-        _failAtStep(e, PairingStep.repairReadCouple);
+      final inviteData = inviteSnap.data()!;
+      final partnerUid = inviteData['creatorUid'] as String;
+      final relationshipStart =
+          inviteData['relationshipStartDate'] as Timestamp?;
+      if (relationshipStart == null) {
+        throw CoupleInviteError.relationshipStartRequired;
       }
-      if (preCouple.exists) {
-        final preMembers = List<String>.from(
-          preCouple.data()?['memberIds'] as List<dynamic>? ?? [],
-        );
-        if (preMembers.contains(uid) && preMembers.contains(creatorUid)) {
-          DocumentSnapshot<Map<String, dynamic>> mePre;
-          try {
-            mePre = await joinerRef.get();
-          } catch (e) {
-            _failAtStep(e, PairingStep.repairReadJoiner);
-          }
-          final myCid = mePre.data()?['coupleId'] as String?;
-          if (myCid == null) {
-            try {
-              await joinerRef.update({'coupleId': existingCreatorCoupleId});
-            } catch (e) {
-              _failAtStep(e, PairingStep.repairUpdateJoiner);
-            }
-            return;
-          }
-          if (myCid == existingCreatorCoupleId) {
-            return;
-          }
-        }
+      if (partnerUid == myUid) throw CoupleInviteError.cannotInviteSelf;
+
+      final partnerRef = _db.collection('users').doc(partnerUid);
+      final partnerSnap = await txn.get(partnerRef);
+      final partnerStatus = (partnerSnap.data()?['status'] as String?) ?? 'SOLO';
+      final partnerInviteCode = partnerSnap.data()?['inviteCode'] as String?;
+      if (partnerStatus != 'PENDING' || partnerInviteCode != code) {
+        throw CoupleInviteError.partnerNotPending;
       }
-    }
 
-    String? newCoupleIdForJoiner;
-
-    try {
-      await _db.runTransaction((txn) async {
-        final joinerSnap = await txn.get(joinerRef);
-        if ((joinerSnap.data()?['coupleId'] as String?) != null) {
-          throw CoupleInviteError.inviteeAlreadyPaired;
-        }
-
-        final creatorRef = _db.collection('users').doc(creatorUid);
-        final creatorSnap = await txn.get(creatorRef);
-        if (!creatorSnap.exists) throw CoupleInviteError.invalidCode;
-
-        final inv = creatorSnap.data()?['inviteCode'] as String?;
-        if (inv == null || inv.toUpperCase() != code) {
-          throw CoupleInviteError.invalidCode;
-        }
-
-        final creatorCoupleId = creatorSnap.data()?['coupleId'] as String?;
-
-        if (creatorCoupleId == null) {
-          final coupleRef = _db.collection('couples').doc();
-          final newId = coupleRef.id;
-          // serverTimestamp는 규칙 keys()와 맞지 않아 거절되는 사례 있음 — 클라이언트 Timestamp로 통일
-          txn.set(coupleRef, {
-            'memberIds': [creatorUid, uid],
-            'createdAt': Timestamp.now(),
-            'loveTemperature': 0,
-          });
-          txn.update(creatorRef, {'coupleId': newId});
-          newCoupleIdForJoiner = newId;
-          return;
-        }
-
-        final coupleRef = _db.collection('couples').doc(creatorCoupleId);
-        final coupleSnap = await txn.get(coupleRef);
-        if (!coupleSnap.exists) throw CoupleInviteError.invalidCode;
-
-        final members = List<String>.from(
-          coupleSnap.data()!['memberIds'] as List<dynamic>,
-        );
-        if (members.length >= 2) throw CoupleInviteError.coupleFull;
-        if (!members.contains(creatorUid)) throw CoupleInviteError.invalidCode;
-        if (members.contains(uid)) throw CoupleInviteError.alreadyInCouple;
-
-        members.add(uid);
-        txn.update(coupleRef, {'memberIds': members});
-        newCoupleIdForJoiner = creatorCoupleId;
+      final coupleRef = _db.collection('couples').doc();
+      txn.set(coupleRef, {
+        'memberIds': [partnerUid, myUid],
+        'relationshipStartDate': relationshipStart,
+        'createdAt': FieldValue.serverTimestamp(),
       });
-    } catch (e) {
-      if (e is CoupleInviteError) rethrow;
-      _failAtStep(e, PairingStep.transaction);
-    }
-
-    final cid = newCoupleIdForJoiner;
-    if (cid != null) {
-      try {
-        await joinerRef.update({'coupleId': cid});
-      } catch (e) {
-        _failAtStep(e, PairingStep.joinerSetCoupleId);
-      }
-    }
-  }
-
-  /// 연애 시작일·결혼 기념일 (커플 멤버만)
-  Future<void> updateMilestones({
-    required String coupleId,
-    DateTime? relationshipStart,
-    DateTime? weddingDate,
-    bool clearRelationshipStart = false,
-    bool clearWeddingDate = false,
-  }) async {
-    final data = <String, dynamic>{
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-    if (clearRelationshipStart) {
-      data['relationshipStart'] = FieldValue.delete();
-    } else if (relationshipStart != null) {
-      data['relationshipStart'] = Timestamp.fromDate(
-        DateTime(
-          relationshipStart.year,
-          relationshipStart.month,
-          relationshipStart.day,
-        ),
-      );
-    }
-    if (clearWeddingDate) {
-      data['weddingDate'] = FieldValue.delete();
-    } else if (weddingDate != null) {
-      data['weddingDate'] = Timestamp.fromDate(
-        DateTime(
-          weddingDate.year,
-          weddingDate.month,
-          weddingDate.day,
-        ),
-      );
-    }
-    if (data.length == 1) return;
-    await coupleRef(coupleId).update(data);
-  }
-
-  /// 연결 직후 기념일 안내를 마쳤음 (다시 띄우지 않음)
-  Future<void> markMilestonesOnboardingDone(String coupleId) async {
-    await coupleRef(coupleId).set(
-      {
-        'milestonesOnboardingDone': true,
+      txn.set(partnerRef, {
+        'status': 'COUPLED',
+        'coupleId': coupleRef.id,
+        'pendingPartnerUid': myUid,
+        'inviteCode': null,
         'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+      }, SetOptions(merge: true));
+      txn.set(myRef, {
+        'status': 'COUPLED',
+        'coupleId': coupleRef.id,
+        'pendingPartnerUid': partnerUid,
+        'inviteCode': null,
+        'relationshipStartDate': relationshipStart,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      txn.delete(inviteRef);
+    });
+  }
+
+  String _randomInviteCode() {
+    final random = Random.secure();
+    return List.generate(
+      UserRepository.inviteCodeLength,
+      (_) => _inviteChars[random.nextInt(_inviteChars.length)],
+    ).join();
   }
 }
