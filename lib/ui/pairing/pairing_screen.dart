@@ -136,14 +136,13 @@ class _PairingScreenState extends State<PairingScreen> {
 
   List<Widget> _formChildren(AppLocalizations l10n, String? uid) {
     return [
-          Text(
-            l10n.pairingBody,
-            style: const TextStyle(color: Colors.black87, fontSize: 16),
-          ),
+          Text(l10n.pairingBody, style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(height: 8),
           Text(
             l10n.pairingCodeFixedHint,
-            style: const TextStyle(color: Colors.black54, fontSize: 13),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
           ),
           const SizedBox(height: 20),
           if (uid == null)
@@ -157,7 +156,9 @@ class _PairingScreenState extends State<PairingScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
                       '${snap.error}',
-                      style: const TextStyle(color: Colors.red),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   );
                 }
@@ -173,20 +174,24 @@ class _PairingScreenState extends State<PairingScreen> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Icon(Icons.qr_code_2_outlined, size: 48, color: Colors.black54),
+                      Icon(
+                        Icons.qr_code_2_outlined,
+                        size: 48,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       const SizedBox(height: 12),
                       Text(
                         l10n.pairingInviteCodeMissingBody,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.black54),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
                       ),
                       const SizedBox(height: 20),
-                      OutlinedButton(
+                      FilledButton(
                         onPressed: _busyEnsureCode ? null : _ensureCode,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.black,
-                          side: const BorderSide(color: Colors.black),
-                        ),
                         child: Text(l10n.pairingCodeLoadRetry),
                       ),
                     ],
@@ -197,26 +202,19 @@ class _PairingScreenState extends State<PairingScreen> {
                   children: [
                     Text(
                       l10n.pairingYourCode,
-                      style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                      style: Theme.of(context).textTheme.labelLarge,
                     ),
                     const SizedBox(height: 8),
                     SelectableText(
                       code,
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 42,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 2,
-                      ),
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            letterSpacing: 4,
+                          ),
                     ),
                     const SizedBox(height: 12),
-                    OutlinedButton.icon(
+                    FilledButton.tonalIcon(
                       onPressed: () => _share(code),
                       icon: const Icon(Icons.share_outlined),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black,
-                        side: const BorderSide(color: Colors.black),
-                      ),
                       label: Text(l10n.pairingShare),
                     ),
                   ],
@@ -226,7 +224,7 @@ class _PairingScreenState extends State<PairingScreen> {
           const SizedBox(height: 36),
           Text(
             l10n.pairingCodeHint,
-            style: const TextStyle(color: Colors.black87, fontSize: 28, fontWeight: FontWeight.w600),
+            style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           TextField(
@@ -235,29 +233,11 @@ class _PairingScreenState extends State<PairingScreen> {
             autocorrect: false,
             decoration: InputDecoration(
               hintText: l10n.pairingCodeHint,
-              hintStyle: const TextStyle(color: Colors.black45, fontSize: 20),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFF8A4B61), width: 2),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFF8A4B61), width: 2.5),
-              ),
-              filled: true,
-              fillColor: Colors.white,
             ),
-            style: const TextStyle(color: Colors.black, fontSize: 18),
           ),
           const SizedBox(height: 16),
-          ElevatedButton(
+          FilledButton(
             onPressed: _busyConnect ? null : _accept,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF8A4B61),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-              padding: const EdgeInsets.symmetric(vertical: 18),
-            ),
             child: _busyConnect
                 ? const SizedBox(
                     height: 22,
@@ -284,13 +264,10 @@ class _PairingScreenState extends State<PairingScreen> {
   Widget _diagnosticCard(BuildContext context) {
     final t = _pairingDiagnostic;
     if (t == null) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
     return Card(
       margin: EdgeInsets.zero,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Colors.black12),
-      ),
+      color: scheme.surfaceContainerHighest.withValues(alpha: 0.65),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -298,11 +275,13 @@ class _PairingScreenState extends State<PairingScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.bug_report_outlined, size: 18, color: Colors.black54),
+                Icon(Icons.bug_report_outlined, size: 18, color: scheme.primary),
                 const SizedBox(width: 8),
                 Text(
                   '연결 시도 진단',
-                  style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: scheme.onSurface,
+                      ),
                 ),
               ],
             ),
@@ -313,7 +292,7 @@ class _PairingScreenState extends State<PairingScreen> {
                 fontFamily: 'monospace',
                 fontSize: 11,
                 height: 1.35,
-                color: Colors.black54,
+                color: scheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -331,11 +310,7 @@ class _PairingScreenState extends State<PairingScreen> {
     final formChildren = _formChildren(l10n, uid);
 
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         title: Text(l10n.pairingTitle),
       ),
       body: showSidePanel
@@ -352,7 +327,7 @@ class _PairingScreenState extends State<PairingScreen> {
                 VerticalDivider(
                   width: 1,
                   thickness: 1,
-                  color: Colors.black12,
+                  color: Theme.of(context).colorScheme.outlineVariant,
                 ),
                 Expanded(
                   flex: 9,
