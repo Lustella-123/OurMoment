@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class AuthRepository {
@@ -16,7 +17,12 @@ class AuthRepository {
 
   User? get currentUser => _auth.currentUser;
 
-  bool needsEmailVerification(User user) => false;
+  bool needsEmailVerification(User user) {
+    final hasPassword = user.providerData.any(
+      (p) => p.providerId == 'password',
+    );
+    return hasPassword && !user.emailVerified;
+  }
 
   Future<UserCredential> signInAnonymously() => _auth.signInAnonymously();
 
@@ -45,6 +51,24 @@ class AuthRepository {
       'apple.com',
     ).credential(idToken: appleCredential.identityToken);
     return _auth.signInWithCredential(oauthCredential);
+  }
+
+  Future<UserCredential> signInWithKakao() async {
+    OAuthToken token;
+    if (await isKakaoTalkInstalled()) {
+      try {
+        token = await UserApi.instance.loginWithKakaoTalk();
+      } catch (_) {
+        token = await UserApi.instance.loginWithKakaoAccount();
+      }
+    } else {
+      token = await UserApi.instance.loginWithKakaoAccount();
+    }
+    final credential = OAuthProvider('oidc.kakao').credential(
+      idToken: token.idToken,
+      accessToken: token.accessToken,
+    );
+    return _auth.signInWithCredential(credential);
   }
 
   Future<UserCredential> signUpWithEmail({
