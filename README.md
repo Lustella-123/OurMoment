@@ -2,6 +2,19 @@
 
 Flutter + Firebase 기반 커플 앱입니다.
 
+## 로컬에서 검증하기 (분석·테스트·빌드 + E2E 체크리스트)
+
+MVP(탭·기록·피드·Firestore `Moments`·달력·설정)를 **본인 PC에서** 같은 기준으로 확인하려면 아래를 따르세요.
+
+1. **자동 검증 한 번에 실행**
+   ```bash
+   bash scripts/local_verify.sh
+   ```
+   APK 빌드를 건너뛰려면: `SKIP_APK_BUILD=1 bash scripts/local_verify.sh`
+
+2. **상세 보고서 + 단계별 실행 방법 + 수동 E2E 체크리스트**  
+   → **[docs/LOCAL_VERIFICATION.md](docs/LOCAL_VERIFICATION.md)**
+
 ## Mac에서 실행 확인 후 TestFlight 업로드
 
 질문하신 대로 **Mac에서 Xcode로 프로젝트를 가져와 실행 확인한 다음, 아래 bash 스크립트를 실행하면 업로드까지 자동화**됩니다.
