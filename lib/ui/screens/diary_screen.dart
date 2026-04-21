@@ -52,7 +52,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
     setState(() => _photos.removeAt(i));
   }
 
-  Future<void> _publish(BuildContext context) async {
+  Future<void> _save(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -94,7 +94,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
       _captionCtrl.clear();
       setState(() => _photos.clear());
       messenger.showSnackBar(SnackBar(content: Text(l10n.diaryPostedSuccess)));
-      nav.goHome();
+      nav.goFeed();
+      if (context.mounted) Navigator.of(context).pop();
     } on MomentsQuotaException {
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(l10n.diaryQuotaExceeded)));
@@ -124,34 +125,34 @@ class _DiaryScreenState extends State<DiaryScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.diaryTitle)),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        title: Text(
+          l10n.diaryTitle,
+          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+        ),
+      ),
       body: _showOfflineGuide
-          ? _UploadOfflineView(onRetry: _busy ? null : () => _publish(context))
+          ? _UploadOfflineView(onRetry: _busy ? null : () => _save(context))
           : ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                Text(
-                  l10n.diaryIntroBody,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 20),
                 if (_photos.isEmpty)
                   Container(
                     height: 200,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: scheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(16),
+                      color: const Color(0xFFF5F5F5),
+                      border: Border.all(color: Colors.black26),
                     ),
-                    child: Icon(
-                      Icons.image_outlined,
-                      size: 64,
-                      color: scheme.outline,
+                    child: Text(
+                      l10n.diaryNoPhotosYet,
+                      style: const TextStyle(color: Colors.black45),
                     ),
                   )
                 else
@@ -164,8 +165,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
                       itemBuilder: (context, i) {
                         return Stack(
                           children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.black26),
+                              ),
                               child: Image.memory(
                                 _photos[i],
                                 width: 120,
@@ -192,29 +195,57 @@ class _DiaryScreenState extends State<DiaryScreen> {
                     ),
                   ),
                 const SizedBox(height: 16),
-                OutlinedButton.icon(
+                OutlinedButton(
                   onPressed: _busy ? null : _pickPhotos,
-                  icon: const Icon(Icons.add_photo_alternate_outlined),
-                  label: Text(l10n.diaryPickPhotos),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.black,
+                    side: const BorderSide(color: Colors.black),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: Text(l10n.diaryPickPhotos),
                 ),
                 const SizedBox(height: 20),
                 TextField(
                   controller: _captionCtrl,
-                  maxLines: 4,
+                  maxLines: 6,
                   maxLength: 2000,
-                  decoration: InputDecoration(hintText: l10n.diaryCaptionHint),
+                  style: const TextStyle(color: Colors.black87),
+                  decoration: InputDecoration(
+                    hintText: l10n.diaryCaptionHint,
+                    hintStyle: const TextStyle(color: Colors.black38),
+                    border: const OutlineInputBorder(),
+                    enabledBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.black26),
+                    ),
+                    focusedBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.black),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: _busy ? null : () => _publish(context),
-                  icon: _busy
+                OutlinedButton(
+                  onPressed: _busy ? null : () => _save(context),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.black,
+                    side: const BorderSide(color: Colors.black),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: _busy
                       ? const SizedBox(
                           width: 22,
                           height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.black,
+                          ),
                         )
-                      : const Icon(Icons.send_rounded),
-                  label: Text(l10n.diaryPublish),
+                      : Text(
+                          l10n.diarySave,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -235,31 +266,30 @@ class _UploadOfflineView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.wifi_off_rounded,
-              size: 42,
-              color: Theme.of(context).colorScheme.outline,
-            ),
+            Icon(Icons.wifi_off_rounded, size: 42, color: Colors.grey.shade700),
             const SizedBox(height: 12),
-            Text(
+            const Text(
               '연결이 끊겼습니다',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '인터넷 연결 후 다시 시도해 주세요.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Colors.black,
               ),
             ),
+            const SizedBox(height: 8),
+            const Text(
+              '인터넷 연결 후 다시 시도해 주세요.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: Colors.black54),
+            ),
             const SizedBox(height: 16),
-            FilledButton.icon(
+            OutlinedButton(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.black,
+                side: const BorderSide(color: Colors.black),
+              ),
+              child: const Text('다시 시도'),
             ),
           ],
         ),

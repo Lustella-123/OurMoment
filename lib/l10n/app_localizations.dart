@@ -110,6 +110,12 @@ abstract class AppLocalizations {
   /// **'홈'**
   String get navHome;
 
+  /// No description provided for @navHomeScreen.
+  ///
+  /// In ko, this message translates to:
+  /// **'홈화면'**
+  String get navHomeScreen;
+
   /// No description provided for @navFeed.
   ///
   /// In ko, this message translates to:
@@ -145,6 +151,12 @@ abstract class AppLocalizations {
   /// In ko, this message translates to:
   /// **'홈'**
   String get homeTitle;
+
+  /// No description provided for @homeRecordButton.
+  ///
+  /// In ko, this message translates to:
+  /// **'오늘의 기록 남기기'**
+  String get homeRecordButton;
 
   /// No description provided for @homeTodayPhotoTitle.
   ///
@@ -193,6 +205,27 @@ abstract class AppLocalizations {
   /// In ko, this message translates to:
   /// **'달력'**
   String get calendarTitle;
+
+  /// No description provided for @calendarLoadError.
+  String get calendarLoadError;
+
+  /// No description provided for @calendarRetry.
+  String get calendarRetry;
+
+  /// No description provided for @calendarAnniversaryFirstYear.
+  String get calendarAnniversaryFirstYear;
+
+  /// No description provided for @calendarAnniversaryYear.
+  String calendarAnniversaryYear(int years);
+
+  /// No description provided for @calendarAnniversaryHundredDays.
+  String calendarAnniversaryHundredDays(int days);
+
+  /// No description provided for @calendarBirthdayMine.
+  String get calendarBirthdayMine;
+
+  /// No description provided for @calendarBirthdayPartner.
+  String get calendarBirthdayPartner;
 
   /// No description provided for @calendarLegendMine.
   ///
@@ -283,6 +316,15 @@ abstract class AppLocalizations {
   /// In ko, this message translates to:
   /// **'언어'**
   String get settingsLanguage;
+
+  /// No description provided for @settingsCalendarDisplay.
+  String get settingsCalendarDisplay;
+
+  /// No description provided for @settingsCalendarShowAnniversaries.
+  String get settingsCalendarShowAnniversaries;
+
+  /// No description provided for @settingsCalendarShowBirthdays.
+  String get settingsCalendarShowBirthdays;
 
   /// No description provided for @settingsLanguageKo.
   ///
@@ -859,6 +901,18 @@ abstract class AppLocalizations {
   /// In ko, this message translates to:
   /// **'올리기'**
   String get diaryPublish;
+
+  /// No description provided for @diarySave.
+  ///
+  /// In ko, this message translates to:
+  /// **'저장'**
+  String get diarySave;
+
+  /// No description provided for @diaryNoPhotosYet.
+  ///
+  /// In ko, this message translates to:
+  /// **'사진을 선택해 주세요'**
+  String get diaryNoPhotosYet;
 
   /// No description provided for @diaryPostedSuccess.
   ///

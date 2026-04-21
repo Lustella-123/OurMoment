@@ -8,6 +8,8 @@ const _kBg = 'settings_bg_color';
 const _kAccent = 'settings_accent_color';
 const _kThemeId = 'settings_theme_id';
 const _kPremium = 'settings_premium_stub';
+const _kCalShowAnniversaries = 'calendar_show_anniversaries';
+const _kCalShowBirthdays = 'calendar_show_birthdays';
 
 class AppSettings extends ChangeNotifier {
   AppSettings(this._prefs);
@@ -19,12 +21,20 @@ class AppSettings extends ChangeNotifier {
 
   /// 스토어 연동 전까지 로컬 플래그 (나중에 Firestore·영수증 검증으로 대체)
   bool _premiumLocalStub = false;
+  bool _calendarShowAnniversaries = true;
+  bool _calendarShowBirthdays = true;
 
   String get languageCode => _languageCode;
   AppThemePalette get themePalette => _themePalette;
   Color get backgroundColor => _themePalette.background;
   Color get accentColor => _themePalette.accent;
   bool get isPremium => _premiumLocalStub;
+
+  /// 달력에 연애 기념일(100일 단위·주년) 표시
+  bool get calendarShowAnniversaries => _calendarShowAnniversaries;
+
+  /// 달력에 생일(유저 문서 birthMonth/birthDay) 표시
+  bool get calendarShowBirthdays => _calendarShowBirthdays;
 
   Future<void> load() async {
     _languageCode = _prefs.getString(_kLang) ?? 'ko';
@@ -43,6 +53,9 @@ class AppSettings extends ChangeNotifier {
       _themePalette = AppTheme.defaultPalette;
     }
     _premiumLocalStub = _prefs.getBool(_kPremium) ?? false;
+    _calendarShowAnniversaries =
+        _prefs.getBool(_kCalShowAnniversaries) ?? true;
+    _calendarShowBirthdays = _prefs.getBool(_kCalShowBirthdays) ?? true;
     notifyListeners();
   }
 
@@ -66,6 +79,18 @@ class AppSettings extends ChangeNotifier {
   Future<void> setPremiumLocalStub(bool value) async {
     _premiumLocalStub = value;
     await _prefs.setBool(_kPremium, value);
+    notifyListeners();
+  }
+
+  Future<void> setCalendarShowAnniversaries(bool value) async {
+    _calendarShowAnniversaries = value;
+    await _prefs.setBool(_kCalShowAnniversaries, value);
+    notifyListeners();
+  }
+
+  Future<void> setCalendarShowBirthdays(bool value) async {
+    _calendarShowBirthdays = value;
+    await _prefs.setBool(_kCalShowBirthdays, value);
     notifyListeners();
   }
 

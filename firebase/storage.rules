@@ -9,7 +9,7 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
-    match /couples/{coupleId}/moments/{momentId}/{fileName} {
+    match /Moments/{coupleId}/{momentId}/{fileName} {
       allow read: if request.auth != null
         && request.auth.uid in firestore.get(
           /databases/(default)/documents/couples/$(coupleId)

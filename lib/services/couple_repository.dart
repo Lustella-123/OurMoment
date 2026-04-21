@@ -51,6 +51,9 @@ class CoupleRepository {
   Stream<DocumentSnapshot<Map<String, dynamic>>> watchCouple(String coupleId) =>
       coupleRef(coupleId).snapshots();
 
+  Future<DocumentSnapshot<Map<String, dynamic>>> getCouple(String coupleId) =>
+      coupleRef(coupleId).get();
+
   /// catch 블록에서만 호출. `rethrow`는 헬퍼 안에서 쓸 수 없어 `throw e`로 전달합니다.
   Never _failAtStep(Object e, PairingStep step) {
     if (e is CoupleInviteError) throw e;

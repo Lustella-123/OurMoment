@@ -15,6 +15,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navHome => 'Home';
 
   @override
+  String get navHomeScreen => 'Home';
+
+  @override
   String get navFeed => 'Feed';
 
   @override
@@ -31,6 +34,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get homeTitle => 'Home';
+
+  @override
+  String get homeRecordButton => 'Record today';
 
   @override
   String get homeTodayPhotoTitle => 'Today\'s moment';
@@ -57,6 +63,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get calendarTitle => 'Calendar';
+
+  @override
+  String get calendarLoadError => 'Could not load the calendar.';
+
+  @override
+  String get calendarRetry => 'Retry';
+
+  @override
+  String get calendarAnniversaryFirstYear => '1st anniversary';
+
+  @override
+  String calendarAnniversaryYear(int years) {
+    return '$years years';
+  }
+
+  @override
+  String calendarAnniversaryHundredDays(int days) {
+    return '$days days';
+  }
+
+  @override
+  String get calendarBirthdayMine => 'My birthday';
+
+  @override
+  String get calendarBirthdayPartner => 'Partner birthday';
 
   @override
   String get calendarLegendMine => 'Mine';
@@ -102,6 +133,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsLanguage => 'Language';
+
+  @override
+  String get settingsCalendarDisplay => 'Calendar display';
+
+  @override
+  String get settingsCalendarShowAnniversaries =>
+      'Show relationship anniversaries';
+
+  @override
+  String get settingsCalendarShowBirthdays => 'Show birthdays';
 
   @override
   String get settingsLanguageKo => 'Korean';
@@ -410,6 +451,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get diaryPublish => 'Post';
+
+  @override
+  String get diarySave => 'Save';
+
+  @override
+  String get diaryNoPhotosYet => 'Choose photos';
 
   @override
   String get diaryPostedSuccess => 'Your moment was saved.';

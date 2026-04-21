@@ -140,6 +140,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
           ),
+          const Divider(height: 24),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(
+              l10n.settingsCalendarDisplay,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+          SwitchListTile.adaptive(
+            title: Text(l10n.settingsCalendarShowAnniversaries),
+            value: settings.calendarShowAnniversaries,
+            onChanged: (v) {
+              unawaited(
+                context.read<AppSettings>().setCalendarShowAnniversaries(v),
+              );
+            },
+          ),
+          SwitchListTile.adaptive(
+            title: Text(l10n.settingsCalendarShowBirthdays),
+            value: settings.calendarShowBirthdays,
+            onChanged: (v) {
+              unawaited(
+                context.read<AppSettings>().setCalendarShowBirthdays(v),
+              );
+            },
+          ),
           const Divider(height: 32),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
