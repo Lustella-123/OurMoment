@@ -44,9 +44,9 @@ open -a Simulator
 ## 1. 한 줄 요약
 
 1. **시뮬레이터 실행**: Xcode 메뉴 또는 `open -a Simulator`  
-2. **프로젝트 루트**에서 `flutter run -d ios` (또는 Cursor에서 **Run and Debug**)  
+2. **프로젝트 루트**에서 `flutter devices`로 시뮬레이터 **이름 또는 id** 확인 후 `flutter run -d <id>` 실행 (`flutter run -d ios`는 환경에 따라 **기기를 못 찾을 수 있음**)  
 3. 터미널이 Flutter에 붙어 있는 동안 **`r`** = 핫 리로드, **`R`** = 핫 리스타트  
-4. (선택) Cursor에서 **저장할 때마다 자동 핫 리로드** — 아래 §5
+4. (선택) Cursor에서 **Run and Debug** — `.vscode/launch.json`은 기기를 강제하지 않음(실행 시 시뮬레이터 선택)
 
 ---
 
@@ -86,16 +86,18 @@ open -a Simulator
 ```bash
 cd /path/to/OurMoment
 flutter pub get
-flutter devices          # "iPhone 15" 등 시뮬레이터가 보이는지 확인
-flutter run -d ios       # 연결된 iOS 시뮬레이터 중 하나로 실행
+flutter devices
 ```
 
-특정 시뮬레이터 ID로 고정하려면:
+**`flutter run -d ios`가 “No supported devices… matching 'ios'” 이면** `-d ios` 대신 목록에 나온 **id** 또는 **기기 이름**을 씁니다.
 
 ```bash
-flutter devices          # id 열 복사
-flutter run -d <기기_ID>
+flutter run -d 5C12B3E5-505F-44AB-A5E7-73BA3367C3E0   # 예: flutter devices 의 id
+# 또는
+flutter run -d "iPhone 16 Pro Max"
 ```
+
+시뮬레이터가 **하나만** 켜져 있으면 보통 `flutter run` 만으로도 잡히는 경우가 많습니다.
 
 ### 4.1 빌드가 끝난 뒤 — 키보드 단축키 (실시간 적용)
 
